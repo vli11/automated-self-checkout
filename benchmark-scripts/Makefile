@@ -16,5 +16,8 @@ build-igt:
 run:
 	docker run -it --rm -v /var/run/docker.sock:/var/run/docker.sock -v `pwd`/results:/tmp/results --net=host --privileged benchmark:dev /bin/bash
 
+run-igt:
+	docker run -it --rm --privileged benchmark:igt /bin/bash
+
 consolidate:
 	docker run -itd -v `pwd`/$(ROOT_DIRECTORY):/$(ROOT_DIRECTORY) -e ROOT_DIRECTORY=$(ROOT_DIRECTORY)--net=host --privileged benchmark:dev /bin/bash -c "python3 consolidate_multiple_run_of_metrics.py --root_directory $(ROOT_DIRECTORY)/ --output $(ROOT_DIRECTORY)/summary.csv"
