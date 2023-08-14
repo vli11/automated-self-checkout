@@ -103,14 +103,14 @@ RUN rm /ovms/lib/*opencv*;
 
 # Copy C-API sources
 #RUN mv model_repo configs
+RUN DEBIAN_FRONTEND=noninteractive apt install -y jq -y && \
+    rm -rf /var/lib/apt/lists/* && rm -rf /tmp/*
+
 ENV LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu/:/usr/local/lib/x86_64-linux-gnu/:/usr/local/lib:/ovms/lib:$LD_LIBRARY_PATH
 COPY configs/gst-ovms /home/intel/gst-ovms
 COPY get-media-codec.sh /home/intel/gst-ovms/
 COPY configs/gst-ovms/launch-pipeline.sh /home/intel/gst-ovms/
 RUN cd /home/intel/gst-ovms/pipelines; chmod +x build-demos.sh; ./build-demos.sh
-
-RUN DEBIAN_FRONTEND=noninteractive apt install -y jq -y && \
-    rm -rf /var/lib/apt/lists/* && rm -rf /tmp/*
 
 USER ovms
 ENV LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu/:/usr/local/lib/x86_64-linux-gnu/:/usr/local/lib:/ovms/lib:$LD_LIBRARY_PATH

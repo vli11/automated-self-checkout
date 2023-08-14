@@ -109,6 +109,36 @@ update_ovms_config_people_detection() {
 	echo $ovms_jsonCfg > configs/gst-ovms/models/config_active.json
 }
 
+update_ovms_config_geti_yolox() {
+
+	ovms_jsonCfg=`cat configs/gst-ovms/models/config_$PIPELINE_NAME.json`
+
+	if [ "$PLATFORM" == "gpu" ]
+	then
+		ovms_jsonCfg=`jq --arg device $TARGET_GPU '(.model_config_list[].config.target_device=$device)' <<< "$ovms_jsonCfg"`
+
+	elif [ "$PLATFORM" == "cpu" ]
+	then
+		ovms_jsonCfg=`jq --arg device CPU '(.model_config_list[].config.target_device=$device)' <<< "$ovms_jsonCfg"`
+	elif [ "$PLATFORM" == "xpu" ]
+	then
+		if [ "$HAS_ARC" == "1" ] || [ "HAS_FLEX_170" == "1" ]
+		then
+			ovms_jsonCfg=`jq --arg name face_detection --arg device GPU.1 '( .model_config_list[] | select(.config.name == $name) ).device |= $device' <<< "$jsonStr"`
+			ovms_jsonCfg=`jq --arg name face_landmarks --arg device GPU.0 '( .model_config_list[] | select(.config.name == $name) ).device |= $device' <<< "$jsonStr"`
+		elif [ "HAS_FLEX_140" == "1" ] 
+		then
+			ovms_jsonCfg=`jq --arg name face_detection --arg device GPU.0 '( .model_config_list[] | select(.config.name == $name) ).device |= $device' <<< "$jsonStr"`
+			ovms_jsonCfg=`jq --arg name face_landmarks --arg device CPU '( .model_config_list[] | select(.config.name == $name) ).device |= $device' <<< "$jsonStr"`
+		else
+			ovms_jsonCfg=`jq --arg name face_detection --arg device GPU.0 '( .model_config_list[] | select(.config.name == $name) ).device |= $device' <<< "$jsonStr"`
+			ovms_jsonCfg=`jq --arg name face_detection --arg device CPU '( .model_config_list[] | select(.config.name == $name) ).device |= $device' <<< "$jsonStr"`
+		fi				
+	fi
+	echo $ovms_jsonCfg > configs/gst-ovms/models/config_active.json
+}
+
+
 # clean up exited containers
 docker rm $(docker ps -a -f name=gst-ovms -f status=exited -q)
 
@@ -139,6 +169,13 @@ elif [ "$PIPELINE_NAME" == "people_detection" ]
 then
 	update_ovms_config_people_detection
 
+elif [ "$PIPELINE_NAME" == "geti_yolox" ]
+then
+
+	update_ovms_config_geti_yolox
+else
+	echo "Unknown pipeline requested"
+	exit 0
 fi
 
 # This updates the media GPU engine utilized based on the request PLATFOR by user

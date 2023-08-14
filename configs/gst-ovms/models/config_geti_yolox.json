@@ -1,0 +1,17 @@
+{ 
+    "model_config_list": 
+    [ 
+        { "config": 
+            { 
+                "name": "geti_yolox", 
+                "base_path": "geti_yolox", 
+                "shape": "(1,3,416,416)", 
+                "nireq": 2, 
+                "batch_size": "1", 
+                "plugin_config": { "PERFORMANCE_HINT": "LATENCY" }, 
+                "target_device": "GPU.1" 
+            }, 
+            "latest": { "num_versions": 2 }
+        }
+    ] 
+}
