@@ -1,0 +1,116 @@
+#
+# Copyright (C) 2023 Intel Corporation.
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+
+# -----------------------------------------------------------
+# base_build requires existing OVMS docker image 
+ARG BASE_IMAGE=ubuntu:22.04
+FROM $BASE_IMAGE as base_build
+
+SHELL ["/bin/bash", "-xo", "pipefail", "-c"]
+
+RUN groupadd --gid 5000 ovms && useradd --home-dir /home/ovms --create-home --uid 5000 \
+             --gid 5000 --shell /bin/bash --skel /dev/null ovms
+
+COPY ovms.tar.gz /
+RUN tar -xf ovms.tar.gz
+RUN chown -R ovms:ovms /ovms
+# -----------------------------------------------------------
+FROM $BASE_IMAGE as release
+ENV DEBIAN_FRONTEND=noninteractive
+SHELL ["/bin/bash", "-c"]
+WORKDIR /
+RUN	set -e ; \
+	set -x ; \
+        groupadd --gid 5000 ovms ; \
+        useradd --home-dir /home/ovms --create-home --uid 5000 --gid 5000 --groups 39,44 --shell /bin/bash --skel /dev/null ovms
+
+# Install dependencies for compiling ocv4.7.0 and the project samples
+ARG BUILD_DEPENDENCIES="cmake build-essential autoconf pkg-config \
+   libssl-dev libusb-1.0-0-dev libudev-dev libgtk-3-dev \
+   libglfw3-dev libgl1-mesa-dev libglu1-mesa-dev \
+   git-gui python3 python3-pip flex bison clang libgtk2.0-dev \
+   libhdf5-serial-dev libvtk9-dev libtbb2 libxml2 curl libpugixml1v5 jq libjpeg-turbo8"
+
+RUN apt -y update && \
+    apt install -y ${BUILD_DEPENDENCIES} && \
+    rm -rf /var/lib/apt/lists/* && rm -rf /tmp/*
+
+
+# Build OCV 4.7.0 
+RUN opencv_branch=${opencv_branch:-4.7.0}; \
+work_dir=${work_dir:-/opt}; \
+current_working_dir=$(pwd); \
+cd $work_dir; \
+git clone https://github.com/opencv/opencv.git --depth 1 -b $opencv_branch $work_dir/opencv_repo; \
+git clone https://github.com/opencv/opencv_contrib.git; \
+cd $work_dir/opencv_contrib; git checkout 4.7.0; \
+cd $work_dir/opencv_repo; \
+mkdir -p $work_dir/opencv_repo/build; \
+cd $work_dir/opencv_repo/build; \
+cmake \
+-D OPENCV_EXTRA_MODULES_PATH=/opt/opencv_contrib/modules \
+-D WITH_GSTREAMER=OFF \
+-D WITH_FFMPEG=OFF \
+-D CMAKE_BUILD_TYPE=Release \
+-D CMAKE_INSTALL_PREFIX=/usr/lib \
+-D OPENCV_LIB_INSTALL_PATH=x86_64-linux-gnu \
+-D WITH_OPENJPEG=OFF \
+-D WITH_JASPER=OFF \
+-D WITH_OPENEXR=OFF \
+-D WITH_TIFF=OFF \
+-D WITH_GTK=ON $work_dir/opencv_repo && \
+make "-j10" && \
+make install
+
+# Build RealSense SDK
+RUN mkdir -p /rs
+WORKDIR /rs
+RUN git clone https://github.com/IntelRealSense/librealsense.git
+WORKDIR /rs/librealsense
+RUN  git checkout v2.54.1
+#COPY ./patch/libusb.h /rs/librealsense/src/libusb/libusb.h 
+RUN mkdir build
+WORKDIR /rs/librealsense/build
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+RUN cmake ../ \
+        -DBUILD_SHARED_LIBS=true \
+        -DBUILD_WITH_JPEGTURBO=true \
+        -DBUILD_PYTHON_BINDINGS:bool=false \
+        -DBUILD_WITH_CUDA=false \
+        -DFORCE_RSUSB_BACKEND=false \        
+        -DBUILD_GLSL_EXTENSIONS=true \
+        -DBUILD_WITH_CPU_EXTENSIONS=true \
+        -DBUILD_UNIT_TESTS=false \
+	-DBUILD_GRAPHICAL_EXAMPLES=true \
+	-DCMAKE_BUILD_TYPE=Release && \
+    make -j"$(cat < /proc/cpuinfo |grep -c proc)" && \
+    make install
+#RUN mv /rs/librealsense/build/libjpeg-turbo/lib/libturbojpeg.so* /usr/local/lib
+
+# Install GPU drivers for Arc. Note replace arc with flex/max below
+RUN apt update -y; apt install -y wget curl vim gpg-agent; wget -qO - https://repositories.intel.com/graphics/intel-graphics.key | gpg --dearmor --output /usr/share/keyrings/intel-graphics.gpg; echo "deb [arch=amd64,i386 signed-by=/usr/share/keyrings/intel-graphics.gpg] https://repositories.intel.com/graphics/ubuntu jammy arc" | tee /etc/apt/sources.list.d/intel-gpu-jammy.list; apt update -y; DEBIAN_FRONTEND=noninteractive apt-get install -y \
+intel-opencl-icd intel-level-zero-gpu level-zero intel-media-va-driver-non-free libmfx1 libmfxgen1 libvpl2 libegl-mesa0 libegl1-mesa libegl1-mesa-dev libgbm1 libgl1-mesa-dev libgl1-mesa-dri libglapi-mesa libgles2-mesa-dev libglx-mesa0 libigdgmm12 libxatracker2 mesa-va-drivers mesa-vdpau-drivers mesa-vulkan-drivers va-driver-all vainfo libcanberra-gtk-module
+
+
+# COPY OVMS runtime
+COPY --from=base_build /ovms /ovms
+# Remove older builds of OpenCV
+RUN rm /ovms/lib/*opencv*;
+
+# Copy C-API sources
+#RUN DEBIAN_FRONTEND=noninteractive apt install -y jq -y && \
+#    rm -rf /var/lib/apt/lists/* && rm -rf /tmp/*
+
+ENV LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu/:/usr/local/lib/x86_64-linux-gnu/:/usr/local/lib:/ovms/lib:$LD_LIBRARY_PATH
+COPY configs/realsense-ovms /home/intel/realsense-ovms
+COPY get-media-codec.sh /home/intel/realsense-ovms/
+COPY configs/realsense-ovms/launch-pipeline.sh /home/intel/realsense-ovms/
+RUN cd /home/intel/realsense-ovms/pipelines; chmod +x build-demos.sh; ./build-demos.sh
+
+USER ovms
+ENV LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu/:/usr/local/lib/x86_64-linux-gnu/:/usr/local/lib:/ovms/lib:$LD_LIBRARY_PATH
+
+ENTRYPOINT ["/bin/bash", "-c"]

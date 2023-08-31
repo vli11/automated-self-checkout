@@ -8,6 +8,7 @@
 REFRESH_INPUT=
 OPEN_OVMS=0
 GST_OVMS=0
+RS_OVMS=0
 
 show_help() {
     echo "
@@ -35,6 +36,8 @@ get_options() {
                 echo "workload: ${2}"
                 if [ "$2" == "gst-ovms" ]; then
                     GST_OVMS=1
+                elif [ "$2" == "realsense-ovms" ]; then
+                    RS_OVMS=1
                 elif [ "$2" == "opencv-ovms" ]; then
                     OPEN_OVMS=1
                 else 
@@ -66,6 +69,9 @@ echo $MODEL_EXEC_PATH
 if [ "$OPEN_OVMS" -eq 1 ]; then
     echo "Starting open-ovms model download..."
     $MODEL_EXEC_PATH/downloadOVMSModels.sh $REFRESH_INPUT
+elif [ "$RS_OVMS" -eq 1 ]; then
+    echo "Starting realsense-ovms model download..."
+    $MODEL_EXEC_PATH/downloadRSOVMSModels.sh $REFRESH_INPUT
 elif [ "$GST_OVMS" -eq 1 ]; then
     echo "Starting gst-ovms model download..."
     $MODEL_EXEC_PATH/downloadGSTOVMSModels.sh $REFRESH_INPUT
