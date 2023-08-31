@@ -97,13 +97,12 @@ OVMS_ModelsSettings* _modelsSettings = 0;
 int _server_grpc_port;
 int _server_http_port;
 
-/* OpenCV media decode */
-std::atomic<int> _mediaPipelinePaused;
 std::string _videoStreamPipeline;
 MediaPipelineServiceInterface::VIDEO_TYPE _videoType = MediaPipelineServiceInterface::VIDEO_TYPE::H264;
 int _detectorModel = 0;
 bool _render = 0;
 bool _use_onevpl = 0;
+bool _renderPortrait = 0;
 cv::Mat _presentationImg;
 int _video_input_width = 0;  // Get from media _img
 int _video_input_height = 0; // Get from media _img
@@ -156,10 +155,10 @@ public:
             {
                 case H264:
                 if (use_onevpl)
-                    return "filesrc location=" + mediaLocation + " ! qtdemux ! h264parse " +
-                    "msdkh264dec ! video/x-raw(memory:VASurface),format=NV12, width=" + std::to_string(video_width) +
-                    ", height=" + std::to_string(video_height) + " ! " +
-                    "msdkvpp scaling-mode=lowpower ! videoconvert ! video/x-raw,format=BGR ! queue ! appsink drop=1 sync=0";
+                    return "filesrc location=" + mediaLocation + " ! qtdemux ! h264parse ! " +
+                    "msdkh264dec ! msdkvpp scaling-mode=lowpower ! " +
+                    "video/x-raw, width=" + std::to_string(video_width) + ", height=" + std::to_string(video_height) + 
+                    " ! videoconvert ! video/x-raw,format=BGR ! queue ! appsink drop=1 sync=0";
                 else
                     return "filesrc location=" + mediaLocation + " ! qtdemux ! h264parse ! vaapidecodebin ! vaapipostproc" +
                     " width=" + std::to_string(video_width) +
@@ -167,10 +166,10 @@ public:
                     " scale-method=fast ! videoconvert ! video/x-raw,format=BGR ! appsink drop=1";
                 case H265:
                 if (use_onevpl)
-                    return "filesrc location=" + mediaLocation + " ! qtdemux ! h265parse " +
-                    "msdkh264dec ! video/x-raw(memory:VASurface),format=NV12, width=" + std::to_string(video_width) +
-                    ", height=" + std::to_string(video_height) + " ! " +
-                    "msdkvpp scaling-mode=lowpower ! videoconvert ! video/x-raw,format=BGR ! queue ! appsink drop=1 sync=0";
+                    return "filesrc location=" + mediaLocation + " ! qtdemux ! h265parse ! " +
+                    "msdkh265dec ! msdkvpp scaling-mode=lowpower ! " +
+                    " video/x-raw, width=" + std::to_string(video_width) + ", height=" + std::to_string(video_height) +
+                    " ! videoconvert ! video/x-raw,format=BGR ! queue ! appsink drop=1 sync=0";
                 else
                     return "filesrc location=" + mediaLocation + " ! qtdemux ! h265parse ! vaapidecodebin ! vaapipostproc" +
                     " width=" + std::to_string(video_width) +
@@ -809,68 +808,6 @@ bool stringIsInteger(std::string strInput) {
     return !strInput.empty() && it == strInput.end();
 }
 
-
-bool openVideo(std::string videoPipeline, cv::VideoCapture& vidcap)
-{
-
-    const char* videoFileName = videoPipeline.c_str();
-
-    // Default to GSTREAMER for media decode
-    int retries = 5;
-    for (int i = 0; i < retries; i++)
-    {
-        if (vidcap.open(videoFileName, cv::CAP_GSTREAMER))
-            break;
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
-    }
-
-    //printf("OV 2\n");
-
-    if (!vidcap.isOpened()) {
-        printf("Unable to open the video stream %s\n", videoFileName);
-    } else {
-        _video_input_width  = vidcap.get(cv::CAP_PROP_FRAME_WIDTH);
-        _video_input_height = vidcap.get(cv::CAP_PROP_FRAME_HEIGHT);
-    }
-    //printf("OV 3\n");
-
-	return vidcap.isOpened();
-}
-
-void closeVideo(cv::VideoCapture& vidcap)
-{
-    int retries = 5;
-    for (int i = 0; i < retries; i++)
-    {
-        if (!vidcap.isOpened())
-            break;
-        else
-            vidcap.release();
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    }
-}
-
-bool getVideoFrame(cv::VideoCapture& vidcap, cv::Mat &img)
-{
-    while (_mediaPipelinePaused)
-    {
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
-    }
-
-	int ret = vidcap.read(img);
-
-	if (!ret)
-    {
-        std::cout << "Warning: Failed to read video frame!" << std::endl;
-
-        //retry one time...
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
-        ret = vidcap.read(img);
-    }
-
-	return ret;
-}
-
 bool setActiveModel(int detectionType, ObjectDetectionInterface** objDet)
 {
     if (objDet == NULL)
@@ -1049,42 +986,6 @@ bool createModelServer()
     return true;
 }
 
-// Bus messages processing, similar to all gstreamer examples
-gboolean bus_call(GstBus *bus, GstMessage *msg, gpointer data)
-{
-	GMainLoop *loop = (GMainLoop *) data;
-
-	switch (GST_MESSAGE_TYPE (msg))
-	{
-
-	case GST_MESSAGE_EOS:
-		fprintf(stderr, "End of stream\n");
-		g_main_loop_quit(loop);
-		break;
-
-	case GST_MESSAGE_ERROR:
-	{
-		gchar *debug;
-		GError *error;
-
-		gst_message_parse_error(msg, &error, &debug);
-		g_free(debug);
-
-		g_printerr("Error: %s\n", error->message);
-		g_error_free(error);
-
-		g_main_loop_quit(loop);
-
-		break;
-	}
-	default:
-		break;
-	}
-
-	return TRUE;
-}
-
-
 bool loadGStreamer(GstElement** pipeline,  GstElement** appsink, std::string mediaPath, ObjectDetectionInterface* _objDet)
 {
     static int threadCnt = 0;
@@ -1221,7 +1122,7 @@ void run_stream(std::string mediaPath, GstElement* pipeline, GstElement* appsink
             return;
         }
 
-        sample = gst_app_sink_try_pull_sample (GST_APP_SINK(appsink), 1 * GST_SECOND);
+        sample = gst_app_sink_try_pull_sample (GST_APP_SINK(appsink), 5 * GST_SECOND);
 
         if (sample == nullptr) {
             std::cout << "ERROR: No sample found" << std::endl;
@@ -1341,46 +1242,42 @@ void run_stream(std::string mediaPath, GstElement* pipeline, GstElement* appsink
 
         numberOfSkipFrames++;
         float fps = 0;
-        if (numberOfSkipFrames <= -1) // skip warm up
+        if (numberOfSkipFrames <= 120) // allow warm up for latency/fps measurements
         {
             initTime = std::chrono::high_resolution_clock::now();
-            numberOfFrames = 1;
-
-            if (response) {
-              OVMS_InferenceResponseDelete(response);
-            }
-
-            if (request) {
-              OVMS_InferenceRequestInputRemoveData(request, objDet->getModelInputName()); // doesn't help
-              OVMS_InferenceRequestRemoveInput(request, objDet->getModelInputName());
-              OVMS_InferenceRequestDelete(request);
-            }
+            numberOfFrames = 1;            
 
             //printf("Too early...Skipping frames..\n");
-            continue;
-        }
-        else if (numberOfSkipFrames > 120)
-            numberOfFrames++;
-
-        auto endTime = std::chrono::high_resolution_clock::now();
-        auto latencyTime = ((std::chrono::duration_cast<std::chrono::milliseconds>(endTime-startTime)).count());
-        auto runningLatencyTime = ((std::chrono::duration_cast<std::chrono::milliseconds>(endTime-initTime)).count());
-        if (runningLatencyTime > 0) { // skip a few to account for init
-            fps = (float)numberOfFrames/(float)(runningLatencyTime/1000); // convert to seconds
-        }
-
-        //printInferenceResults(detectedResultsFiltered);
-        if (_render) {
-            displayGUIInferenceResults(img, detectedResultsFiltered, latencyTime, fps);
-            //return;
         }
         else
         {
-            std::cout << "Pipeline Throughput FPS: " << fps << std::endl;
-            std::cout << "Pipeline Latency (ms): " << std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime).count() << std::endl;
-        }
-        //saveInferenceResultsAsVideo(img, detectedResultsFiltered);
+            numberOfFrames++;
 
+            auto endTime = std::chrono::high_resolution_clock::now();
+            auto latencyTime = ((std::chrono::duration_cast<std::chrono::milliseconds>(endTime-startTime)).count());
+            auto runningLatencyTime = ((std::chrono::duration_cast<std::chrono::milliseconds>(endTime-initTime)).count());
+            if (runningLatencyTime > 0) { // skip a few to account for init
+                fps = (float)numberOfFrames/(float)(runningLatencyTime/1000); // convert to seconds
+            }
+            
+            if (_render) 
+                displayGUIInferenceResults(img, detectedResultsFiltered, latencyTime, fps);
+
+            if (numberOfFrames % 30 == 0) {
+                time_t     currTime = time(0);
+                struct tm  tstruct;
+                char       bCurrTime[80];
+                tstruct = *localtime(&currTime);
+                // http://en.cppreference.com/w/cpp/chrono/c/strftime
+                strftime(bCurrTime, sizeof(bCurrTime), "%Y-%m-%d.%X", &tstruct);
+
+                cout << detectedResultsFiltered.size() << " object(s) detected at " << bCurrTime  << endl;
+                //cout << "Pipeline Throughput FPS: " << fps << endl;
+                //cout << "Pipeline Latency (ms): " << chrono::duration_cast<chrono::milliseconds>(endTime - startTime).count() << endl;
+            }
+
+            //saveInferenceResultsAsVideo(img, detectedResultsFiltered);
+        }
 
         if (request) {
            OVMS_InferenceRequestInputRemoveData(request, objDet->getModelInputName()); // doesn't help
@@ -1444,15 +1341,23 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    if (!stringIsInteger(argv[2]) || !stringIsInteger(argv[3]) || !stringIsInteger(argv[4]) ) {
+    if (!stringIsInteger(argv[2]) || !stringIsInteger(argv[3]) || !stringIsInteger(argv[4])
+        || !stringIsInteger(argv[5])) {
         print_usage(argv[0]);
         return 1;
     } else {
         _videoStreamPipeline = argv[1];
         _use_onevpl = std::stoi(argv[2]);
-        _render = std::stoi(argv[3]);        
-        _videoType = (MediaPipelineServiceInterface::VIDEO_TYPE) std::stoi(argv[4]);
-        _detectorModel = 2; // use face_detection model
+        _render = std::stoi(argv[3]);
+        _renderPortrait = std::stoi(argv[4]);
+        _videoType = (MediaPipelineServiceInterface::VIDEO_TYPE) std::stoi(argv[5]);
+        _detectorModel = 2; // use geti-yolox model
+
+        if (_renderPortrait) {
+            int tmp = _window_width;
+            _window_width = _window_height;
+            _window_height = tmp;
+        }
     }
 
     gst_init(NULL, NULL);
@@ -1478,10 +1383,7 @@ int main(int argc, char** argv) {
 
     _allDecodersInitd = true;
     _cvAllDecodersInitd.notify_all();;
-
-    // while (!shutdown_request) {
-    //     std::this_thread::sleep_for(std::chrono::milliseconds(100000));
-    // } //end while
+    
 
    for(auto& running_stream : running_streams)
        running_stream.join();

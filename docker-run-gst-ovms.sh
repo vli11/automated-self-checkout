@@ -43,11 +43,11 @@ update_ovms_config_face_detection() {
 		ovms_jsonCfg=`jq --arg device CPU '(.model_config_list[].config.target_device=$device)' <<< "$ovms_jsonCfg"`
 	elif [ "$PLATFORM" == "xpu" ]
 	then
-		if [ "$HAS_ARC" == "1" ] || [ "HAS_FLEX_170" == "1" ]
+		if [ "$HAS_ARC" == "1" ] || [ "$HAS_FLEX_170" == "1" ]
 		then
 			ovms_jsonCfg=`jq --arg name face_detection --arg device GPU.1 '( .model_config_list[] | select(.config.name == $name) ).device |= $device' <<< "$jsonStr"`
 			ovms_jsonCfg=`jq --arg name face_landmarks --arg device GPU.0 '( .model_config_list[] | select(.config.name == $name) ).device |= $device' <<< "$jsonStr"`
-		elif [ "HAS_FLEX_140" == "1" ] 
+		elif [ "$HAS_FLEX_140" == "1" ] 
 		then
 			ovms_jsonCfg=`jq --arg name face_detection --arg device GPU.0 '( .model_config_list[] | select(.config.name == $name) ).device |= $device' <<< "$jsonStr"`
 			ovms_jsonCfg=`jq --arg name face_landmarks --arg device CPU '( .model_config_list[] | select(.config.name == $name) ).device |= $device' <<< "$jsonStr"`
@@ -72,11 +72,11 @@ update_ovms_config_object_and_text_detection() {
 		ovms_jsonCfg=`jq --arg device CPU '(.model_config_list[].config.target_device=$device)' <<< "$ovms_jsonCfg"`
 	elif [ "$PLATFORM" == "xpu" ]
 	then
-		if [ "$HAS_ARC" == "1" ] || [ "HAS_FLEX_170" == "1" ]
+		if [ "$HAS_ARC" == "1" ] || [ "$HAS_FLEX_170" == "1" ]
 		then
 			ovms_jsonCfg=`jq --arg name yolov5s --arg device GPU.0 '( .model_config_list[] | select(.config.name == $name) ).device |= $device' <<< "$jsonStr"`
 			ovms_jsonCfg=`jq --arg name text-detect-0002 --arg device GPU.1 '( .model_config_list[] | select(.config.name == $name) ).device |= $device' <<< "$jsonStr"`
-		elif [ "HAS_FLEX_140" == "1" ] 
+		elif [ "$HAS_FLEX_140" == "1" ] 
 		then
 			ovms_jsonCfg=`jq --arg name yolov5s --arg device GPU.0 '( .model_config_list[] | select(.config.name == $name) ).device |= $device' <<< "$jsonStr"`
 			ovms_jsonCfg=`jq --arg name text-detect-0002 --arg device CPU '( .model_config_list[] | select(.config.name == $name) ).device |= $device' <<< "$jsonStr"`
@@ -122,17 +122,43 @@ update_ovms_config_geti_yolox() {
 		ovms_jsonCfg=`jq --arg device CPU '(.model_config_list[].config.target_device=$device)' <<< "$ovms_jsonCfg"`
 	elif [ "$PLATFORM" == "xpu" ]
 	then
-		if [ "$HAS_ARC" == "1" ] || [ "HAS_FLEX_170" == "1" ]
+		if [ "$HAS_ARC" == "1" ] || [ "$HAS_FLEX_170" == "1" ]
 		then
-			ovms_jsonCfg=`jq --arg name face_detection --arg device GPU.1 '( .model_config_list[] | select(.config.name == $name) ).device |= $device' <<< "$jsonStr"`
-			ovms_jsonCfg=`jq --arg name face_landmarks --arg device GPU.0 '( .model_config_list[] | select(.config.name == $name) ).device |= $device' <<< "$jsonStr"`
-		elif [ "HAS_FLEX_140" == "1" ] 
+			ovms_jsonCfg=`jq --arg name geti_yolox --arg device GPU.1 '( .model_config_list[] | select(.config.name == $name) ).device |= $device' <<< "$jsonStr"`
+		elif [ "$HAS_FLEX_140" == "1" ] 
 		then
-			ovms_jsonCfg=`jq --arg name face_detection --arg device GPU.0 '( .model_config_list[] | select(.config.name == $name) ).device |= $device' <<< "$jsonStr"`
-			ovms_jsonCfg=`jq --arg name face_landmarks --arg device CPU '( .model_config_list[] | select(.config.name == $name) ).device |= $device' <<< "$jsonStr"`
+			ovms_jsonCfg=`jq --arg name geti_yolox --arg device GPU.0 '( .model_config_list[] | select(.config.name == $name) ).device |= $device' <<< "$jsonStr"`
 		else
-			ovms_jsonCfg=`jq --arg name face_detection --arg device GPU.0 '( .model_config_list[] | select(.config.name == $name) ).device |= $device' <<< "$jsonStr"`
-			ovms_jsonCfg=`jq --arg name face_detection --arg device CPU '( .model_config_list[] | select(.config.name == $name) ).device |= $device' <<< "$jsonStr"`
+			ovms_jsonCfg=`jq --arg name geti_yolox --arg device GPU.0 '( .model_config_list[] | select(.config.name == $name) ).device |= $device' <<< "$jsonStr"`
+		fi				
+	fi
+	echo $ovms_jsonCfg > configs/gst-ovms/models/config_active.json
+}
+
+update_ovms_config_geti_yolox_ensemble() {
+
+	ovms_jsonCfg=`cat configs/gst-ovms/models/config_$PIPELINE_NAME.json`
+
+	if [ "$PLATFORM" == "gpu" ]
+	then
+		ovms_jsonCfg=`jq --arg device $TARGET_GPU '(.model_config_list[].config.target_device=$device)' <<< "$ovms_jsonCfg"`
+
+	elif [ "$PLATFORM" == "cpu" ]
+	then
+		ovms_jsonCfg=`jq --arg device CPU '(.model_config_list[].config.target_device=$device)' <<< "$ovms_jsonCfg"`
+	elif [ "$PLATFORM" == "xpu" ]
+	then
+		if [ "$HAS_ARC" == "1" ] || [ "$HAS_FLEX_170" == "1" ]
+		then
+			ovms_jsonCfg=`jq --arg name geti_yolox --arg device GPU.1 '( .model_config_list[] | select(.config.name == $name) ).device |= $device' <<< "$jsonStr"`
+			ovms_jsonCfg=`jq --arg name efficientnetb0 --arg device GPU.0 '( .model_config_list[] | select(.config.name == $name) ).device |= $device' <<< "$jsonStr"`
+		elif [ "$HAS_FLEX_140" == "1" ] 
+		then
+			ovms_jsonCfg=`jq --arg name geti_yolox --arg device GPU.0 '( .model_config_list[] | select(.config.name == $name) ).device |= $device' <<< "$jsonStr"`
+			ovms_jsonCfg=`jq --arg name efficientnetb0 --arg device CPU '( .model_config_list[] | select(.config.name == $name) ).device |= $device' <<< "$jsonStr"`
+		else
+			ovms_jsonCfg=`jq --arg name geti_yolox --arg device GPU.0 '( .model_config_list[] | select(.config.name == $name) ).device |= $device' <<< "$jsonStr"`
+			ovms_jsonCfg=`jq --arg name efficientnetb0 --arg device CPU '( .model_config_list[] | select(.config.name == $name) ).device |= $device' <<< "$jsonStr"`
 		fi				
 	fi
 	echo $ovms_jsonCfg > configs/gst-ovms/models/config_active.json
@@ -143,8 +169,12 @@ update_ovms_config_geti_yolox() {
 docker rm $(docker ps -a -f name=gst-ovms -f status=exited -q)
 
 export GST_DEBUG=0
-if [ -z USE_ONEVPL ]; then
+if [ -z "$USE_ONEVPL" ]; then
 	USE_ONEVPL=0
+fi
+
+if [ -z "$RENDER_PORTRAIT_MODE" ]; then
+	RENDER_PORTRAIT_MODE=0
 fi
 
 
@@ -152,7 +182,7 @@ source benchmark-scripts/get-gpu-info.sh
 
 if [ -z "$PLATFORM" ] || [ -z "$INPUTSRC" ] || [ -z "$PIPELINE_NAME" ]
 then
-	source get-options-capi-demos.sh "$@"
+	source get-options-gst-demos.sh "$@"
 fi
 
 # This updates OVMS config files based on requested PLATFORM by user
@@ -173,6 +203,12 @@ elif [ "$PIPELINE_NAME" == "geti_yolox" ]
 then
 
 	update_ovms_config_geti_yolox
+
+elif [ "$PIPELINE_NAME" == "geti_yolox_ensemble" ]
+then
+
+	update_ovms_config_geti_yolox_ensemble
+
 else
 	echo "Unknown pipeline requested"
 	exit 0
@@ -186,7 +222,7 @@ update_media_device_engine
 cl_cache_dir=`pwd`/.cl-cache
 echo "CLCACHE: $cl_cache_dir"
 
-TAG=openvino/model_server-capi:latest
+TAG=openvino/model_server-capi-gst:latest
 
 if [ ! -z "$CONTAINER_IMAGE_OVERRIDE" ]
 then
@@ -204,10 +240,18 @@ RUN_MODE="-itd"
 if [ "$RENDER_MODE" == 1 ]
 then
 	RUN_MODE="-it"
+	xhost +
+fi
+
+if grep -q "file" <<< "$INPUTSRC"; then
+	# filesrc	
+	arrfilesrc=(${INPUTSRC//:/ })
+	# use vids since container maps a volume to this location based on sample-media folder
+	INPUTSRC="./vids/"${arrfilesrc[1]}
 fi
 
 # cmdlineargs: inputsrc 0-libva|1-onevpl 0-norender|1-render
-bash_cmd="./launch-pipeline.sh $PIPELINE_EXEC_PATH $INPUTSRC $USE_ONEVPL $RENDER_MODE"
+bash_cmd="./launch-pipeline.sh $PIPELINE_EXEC_PATH $INPUTSRC $USE_ONEVPL $RENDER_MODE $RENDER_PORTRAIT_MODE"
 
 if [ "$STREAM_DENSITY_MODE" == 1 ]; then
 	echo "Starting Stream Density"
@@ -233,7 +277,7 @@ fi
 ./download_models/getModels.sh --workload gst-ovms
 
 # -v `pwd`/configs/gst-ovms/pipelines:/home/intel/gst-ovms/pipelines \
-echo "BashCmd: $bash_cmd with media on $GST_VAAPI_DRM_DEVICE with USE_ONVPL=$USE_ONEVPL"
+echo "BashCmd: $bash_cmd with media on $GST_VAAPI_DRM_DEVICE with USE_ONEVPL=$USE_ONEVPL"
 docker run --network host \
  $cameras $TARGET_USB_DEVICE $TARGET_GPU_DEVICE \
  --user root --ipc=host --name gst-ovms$cid_count \
@@ -256,6 +300,7 @@ docker run --network host \
  -e decode_type="$decode_type" \
  -e USE_ONEVPL="$USE_ONEVPL" \
  -e cid_count=$cid_count \
+ -e RENDER_PORTRAIT_MODE=$RENDER_PORTRAIT_MODE \
  -e AUTO_SCALE_FLEX_140="$AUTO_SCALE_FLEX_140" \
  $RUN_MODE $stream_density_params \
  $TAG "$bash_cmd"

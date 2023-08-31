@@ -16,15 +16,16 @@ error() {
 }
 
 show_help() {
-	echo " WIP (STREAM_DENSITY...and only RTSP inputs are implemented)
-         usage: ./docker-run.sh --platform gpu|cpu|xpu --inputsrc RS_SERIAL_NUMBER|CAMERA_RTSP_URL|file:video.mp4|/dev/video0 [--realsense_enabled] --pipeline face_detection|people_detection_retail|people_detection_yolov5s|object_and_text_detection|geti_yolox
+	echo " Under development (benchmarking is not validated and likely many other features)
+         usage: ./docker-run.sh --platform gpu|cpu|xpu --inputsrc CAMERA_RTSP_URL|file:video.mp4|/dev/video0 [--realsense_enabled] --pipeline face_detection|people_detection_retail|people_detection_yolov5s|object_and_text_detection|geti_yolox
 
          Note: 
 	  1. gpu.x should be replaced with targeted GPUs such as gpu (for all GPUs), gpu.0, gpu.1, etc
 	  2. filesrc will utilize videos stored in the sample-media folder
 	  3. Set environment variable STREAM_DENSITY_MODE=1 for starting single container stream density testing
 	  4. Set environment variable RENDER_MODE=1 for displaying pipeline and overlay CV metadata
-      5. Set environment variable USE_ONEVPL=1 for oneVPL
+	  5. Set environment variable USE_ONEVPL=1 for oneVPL
+	  6. Set environment variable RENDER_PORTRAIT_MODE=1 for rendering with portrait mode
         "
 }
 

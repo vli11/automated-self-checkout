@@ -30,6 +30,7 @@ cd $modelDir || { echo "Failure to cd to $modelDir"; exit 1; }
 if [ "$REFRESH_MODE" -eq 1 ]; then
     # cleaned up all downloaded files so it will re-download all files again
     rm yolov5s/1/*.xml || true; rm yolov5s/1/*.bin || true
+    rm efficientnetb0/1/*.xml  || true; rm efficientnetb0/1/*.bin || true
     rm person-detection-retail-0013/1/*.xml  || true; rm  person-detection-retail-0013/1/*.bin  || true
     rm text-detect-0002/1/*.xml || true; rm text-detect-0002/1/*.bin || true;
     rm face-detect-retail-0005/1/*.xml || true; rm face-detect-retail-0005/1/*.bin || true; 
@@ -54,6 +55,10 @@ getOVMSModelFiles() {
 
 if [ ! -f "yolov5s/1/yolov5s.xml" ]; then
     getOVMSModelFiles https://github.com/dlstreamer/pipeline-zoo-models/raw/main/storage/yolov5s-416_INT8/FP16-INT8/yolov5s yolov5s
+fi
+
+if [ ! -f "efficientnetb0/1/efficientnet-b0.xml" ]; then
+    getOVMSModelFiles https://github.com/dlstreamer/pipeline-zoo-models/raw/main/storage/efficientnet-b0_INT8/FP16-INT8/efficientnet-b0 efficientnetb0
 fi
 
 if [ ! -f "person-detection-retail-0013/1/person-detection-retail-0013.xml" ]; then
