@@ -97,13 +97,12 @@ OVMS_ModelsSettings* _modelsSettings = 0;
 int _server_grpc_port;
 int _server_http_port;
 
-/* OpenCV media decode */
-std::atomic<int> _mediaPipelinePaused;
 std::string _videoStreamPipeline;
 MediaPipelineServiceInterface::VIDEO_TYPE _videoType = MediaPipelineServiceInterface::VIDEO_TYPE::H264;
 int _detectorModel = 0;
 bool _render = 0;
 bool _use_onevpl = 0;
+bool _renderPortrait = 0;
 cv::Mat _presentationImg;
 int _video_input_width = 0;  // Get from media _img
 int _video_input_height = 0; // Get from media _img
@@ -296,7 +295,7 @@ class GetiYoloX : public ObjectDetectionInterface {
 public:
 
     GetiYoloX() {
-        confidence_threshold = .5;
+        confidence_threshold = .7;
         classes = 1;
         std::vector<int> vmodel_input_shape = getModelInputShape();
         std::copy(vmodel_input_shape.begin(), vmodel_input_shape.end(), model_input_shape);
@@ -1277,7 +1276,7 @@ void run_stream(std::string mediaPath, GstElement* pipeline, GstElement* appsink
             return;
         }
 
-        sample = gst_app_sink_try_pull_sample (GST_APP_SINK(appsink), 1 * GST_SECOND);
+        sample = gst_app_sink_try_pull_sample (GST_APP_SINK(appsink), 5 * GST_SECOND);
 
         if (sample == nullptr) {
             std::cout << "ERROR: No sample found" << std::endl;
@@ -1422,7 +1421,7 @@ void run_stream(std::string mediaPath, GstElement* pipeline, GstElement* appsink
         {
             numberOfFrames++;
 
-            auto endTime = std::chrono::high_resolution_clock::now();
+            auto endTime = std::chrono::high_resolution_clock::now();            
             auto latencyTime = ((std::chrono::duration_cast<std::chrono::milliseconds>(endTime-startTime)).count());
             auto runningLatencyTime = ((std::chrono::duration_cast<std::chrono::milliseconds>(endTime-initTime)).count());
             if (runningLatencyTime > 0) { // skip a few to account for init
@@ -1433,8 +1432,16 @@ void run_stream(std::string mediaPath, GstElement* pipeline, GstElement* appsink
                 displayGUIInferenceResults(img, detectedResultsFiltered, latencyTime, fps);                
 
             if (numberOfFrames % 30 == 0) {
-                std::cout << "Pipeline Throughput FPS: " << fps << std::endl;
-                std::cout << "Pipeline Latency (ms): " << std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime).count() << std::endl;
+                time_t     currTime = time(0);
+                struct tm  tstruct;
+                char       bCurrTime[80];
+                tstruct = *localtime(&currTime);
+                // http://en.cppreference.com/w/cpp/chrono/c/strftime
+                strftime(bCurrTime, sizeof(bCurrTime), "%Y-%m-%d.%X", &tstruct);
+
+                cout << detectedResultsFiltered.size() << " object(s) detected at " << bCurrTime  << endl;
+                //cout << "Pipeline Throughput FPS: " << fps << endl;
+                //cout << "Pipeline Latency (ms): " << chrono::duration_cast<chrono::milliseconds>(endTime - startTime).count() << endl;
             }
             
             //saveInferenceResultsAsVideo(img, detectedResultsFiltered);
@@ -1502,15 +1509,23 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    if (!stringIsInteger(argv[2]) || !stringIsInteger(argv[3]) || !stringIsInteger(argv[4]) ) {
+    if (!stringIsInteger(argv[2]) || !stringIsInteger(argv[3]) || !stringIsInteger(argv[4])
+        || !stringIsInteger(argv[5] )) {
         print_usage(argv[0]);
         return 1;
     } else {
         _videoStreamPipeline = argv[1];
         _use_onevpl = std::stoi(argv[2]);
-        _render = std::stoi(argv[3]);        
-        _videoType = (MediaPipelineServiceInterface::VIDEO_TYPE) std::stoi(argv[4]);
+        _render = std::stoi(argv[3]);
+        _renderPortrait = std::stoi(argv[4]);
+        _videoType = (MediaPipelineServiceInterface::VIDEO_TYPE) std::stoi(argv[5]);
         _detectorModel = 3; // use geti-yolox model
+
+        if (_renderPortrait) {
+            int tmp = _window_width;
+            _window_width = _window_height;
+            _window_height = tmp;
+        }
     }
 
     gst_init(NULL, NULL);
@@ -1524,11 +1539,11 @@ int main(int argc, char** argv) {
     getMAPipeline(_videoStreamPipeline, &pipeline,  &appsink, &objDet);
     running_streams.emplace_back(run_stream, _videoStreamPipeline, pipeline, appsink, objDet);
 
-    GstElement *pipeline2;
-    GstElement *appsink2;
-    ObjectDetectionInterface* objDet2;
-    getMAPipeline(_videoStreamPipeline, &pipeline2,  &appsink2, &objDet2);
-    running_streams.emplace_back(run_stream, _videoStreamPipeline, pipeline2, appsink2, objDet2);
+    // GstElement *pipeline2;
+    // GstElement *appsink2;
+    // ObjectDetectionInterface* objDet2;
+    // getMAPipeline(_videoStreamPipeline, &pipeline2,  &appsink2, &objDet2);
+    // running_streams.emplace_back(run_stream, _videoStreamPipeline, pipeline2, appsink2, objDet2);
 
     if (!loadOVMS())
         return -1;
