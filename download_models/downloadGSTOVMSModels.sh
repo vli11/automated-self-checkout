@@ -58,7 +58,7 @@ if [ ! -f "yolov5s/1/yolov5s.xml" ]; then
 fi
 
 if [ ! -f "efficientnetb0/1/efficientnet-b0.xml" ]; then
-    getOVMSModelFiles https://github.com/dlstreamer/pipeline-zoo-models/raw/main/storage/efficientnet-b0_INT8/FP16-INT8/efficientnet-b0 efficientnetb0
+    getOVMSModelFiles https://github.com/dlstreamer/pipeline-zoo-models/raw/main/storage/efficientnet-b0_INT8/FP32-INT8/efficientnet-b0 efficientnetb0
 fi
 
 if [ ! -f "person-detection-retail-0013/1/person-detection-retail-0013.xml" ]; then

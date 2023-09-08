@@ -164,11 +164,40 @@ update_ovms_config_geti_yolox_ensemble() {
 	echo $ovms_jsonCfg > configs/gst-ovms/models/config_active.json
 }
 
+update_ovms_config_yolov5_ensemble() {
+
+	ovms_jsonCfg=`cat configs/gst-ovms/models/config_$PIPELINE_NAME.json`
+
+	if [ "$PLATFORM" == "gpu" ]
+	then
+		ovms_jsonCfg=`jq --arg device $TARGET_GPU '(.model_config_list[].config.target_device=$device)' <<< "$ovms_jsonCfg"`
+
+	elif [ "$PLATFORM" == "cpu" ]
+	then
+		ovms_jsonCfg=`jq --arg device CPU '(.model_config_list[].config.target_device=$device)' <<< "$ovms_jsonCfg"`
+	elif [ "$PLATFORM" == "xpu" ]
+	then
+		if [ "$HAS_ARC" == "1" ] || [ "$HAS_FLEX_170" == "1" ]
+		then
+			ovms_jsonCfg=`jq --arg name yolov5 --arg device GPU.1 '( .model_config_list[] | select(.config.name == $name) ).device |= $device' <<< "$jsonStr"`
+			ovms_jsonCfg=`jq --arg name efficientnetb0 --arg device GPU.0 '( .model_config_list[] | select(.config.name == $name) ).device |= $device' <<< "$jsonStr"`
+		elif [ "$HAS_FLEX_140" == "1" ] 
+		then
+			ovms_jsonCfg=`jq --arg name yolov5 --arg device GPU.0 '( .model_config_list[] | select(.config.name == $name) ).device |= $device' <<< "$jsonStr"`
+			ovms_jsonCfg=`jq --arg name efficientnetb0 --arg device CPU '( .model_config_list[] | select(.config.name == $name) ).device |= $device' <<< "$jsonStr"`
+		else
+			ovms_jsonCfg=`jq --arg name yolov5 --arg device GPU.0 '( .model_config_list[] | select(.config.name == $name) ).device |= $device' <<< "$jsonStr"`
+			ovms_jsonCfg=`jq --arg name efficientnetb0 --arg device CPU '( .model_config_list[] | select(.config.name == $name) ).device |= $device' <<< "$jsonStr"`
+		fi				
+	fi
+	echo $ovms_jsonCfg > configs/gst-ovms/models/config_active.json
+}
+
 
 # clean up exited containers
 docker rm $(docker ps -a -f name=gst-ovms -f status=exited -q)
 
-export GST_DEBUG=0
+#export GST_DEBUG=0
 if [ -z "$USE_ONEVPL" ]; then
 	USE_ONEVPL=0
 fi
@@ -208,6 +237,11 @@ elif [ "$PIPELINE_NAME" == "geti_yolox_ensemble" ]
 then
 
 	update_ovms_config_geti_yolox_ensemble
+
+elif [ "$PIPELINE_NAME" == "yolov5_ensemble" ]
+then
+
+	update_ovms_config_yolov5_ensemble
 
 else
 	echo "Unknown pipeline requested"

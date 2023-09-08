@@ -17,7 +17,7 @@ error() {
 
 show_help() {
 	echo " Under development (benchmarking is not validated and likely many other features)
-         usage: ./docker-run.sh --platform gpu|cpu|xpu --inputsrc CAMERA_RTSP_URL|file:video.mp4|/dev/video0 [--realsense_enabled] --pipeline face_detection|people_detection_retail|people_detection_yolov5s|object_and_text_detection|geti_yolox
+         usage: ./docker-run.sh --platform gpu|cpu|xpu --inputsrc CAMERA_RTSP_URL|file:video.mp4|/dev/video0 [--realsense_enabled] --pipeline face_detection|people_detection_retail|people_detection_yolov5s|object_and_text_detection|geti_yolox!geti_yolox_ensemble|yolov5_ensemble
 
          Note: 
 	  1. gpu.x should be replaced with targeted GPUs such as gpu (for all GPUs), gpu.0, gpu.1, etc
@@ -82,7 +82,7 @@ while :; do
             PIPELINE_EXEC_PATH="pipelines/${2}/${2}"
 		    shift
 	    else
-            error 'ERROR: "--pipeline" requires an argument face_detection|people_detection_retail|people_detection_yolov5s|object_and_text_detection|geti_yolox'
+            error 'ERROR: "--pipeline" requires an argument face_detection|people_detection_retail|people_detection_yolov5s|object_and_text_detection|geti_yolox|geti_yolox_ensemble|yolov5_ensemble'
 	    fi
 	    ;;
     -?*)
