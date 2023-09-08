@@ -1,0 +1,37 @@
+#
+# Copyright (C) 2023 Intel Corporation.
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+
+FROM ubuntu:22.04 as builder
+
+# don't ask anything
+ARG DEBIAN_FRONTEND=noninteractive
+
+WORKDIR /opt/intel/xpucli
+
+RUN apt-get update && \
+  apt-get install -y --no-install-recommends wget gnupg2 ca-certificates && \
+  wget -qO - https://repositories.intel.com/graphics/intel-graphics.key | gpg --dearmor --output /usr/share/keyrings/intel-graphics.gpg && \
+  wget https://github.com/intel/xpumanager/releases/download/V1.2.17/xpu-smi_1.2.17_20230824.071713.61de2c0f.u22.04_amd64.deb && \
+  echo 'deb [arch=amd64 signed-by=/usr/share/keyrings/intel-graphics.gpg] https://repositories.intel.com/graphics/ubuntu jammy arc' | \
+  tee /etc/apt/sources.list.d/intel.gpu.jammy.list && \
+  apt-get update && \
+  apt-get install -y --no-install-recommends \
+    dmidecode \
+    python3 \
+    libnl-genl-3-200 \
+    libmfx-tools \
+    intel-gsc \
+    intel-level-zero-gpu \
+    level-zero \
+    libdrm2 && \
+  apt-get remove -y wget gnupg2 ca-certificates && \
+  apt-get autoremove -y && \
+  rm -rf /var/lib/apt/lists/*
+
+
+RUN dpkg -i --force-all *.deb
+
+# set up entry point
