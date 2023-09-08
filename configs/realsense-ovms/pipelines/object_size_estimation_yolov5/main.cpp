@@ -1780,7 +1780,7 @@ void run_stream(std::string camera_serial, rs2::pipeline* pipe, rs2::align* alig
         if (numberOfSkipFrames <= 120) // allow warm up for latency/fps measurements
         {
             initTime = std::chrono::high_resolution_clock::now();
-            numberOfFrames = 1;
+            numberOfFrames = 0;
 
             //printf("Too early...Skipping frames..\n");
         }
@@ -1798,7 +1798,23 @@ void run_stream(std::string camera_serial, rs2::pipeline* pipe, rs2::align* alig
             if (_render)
                 displayGUIInferenceResults(img, detectedResultsFiltered, latencyTime, fps);                
 
+            static int highest_latency_frame = 0;
+            static int lowest_latency_frame = 9999;
+            static int avg_latency_frame = 0;
+            static int total_latency_frames = 0;
+
+            int frame_latency = chrono::duration_cast<chrono::milliseconds>(endTime - startTime).count();
+            
+            if (frame_latency > highest_latency_frame)
+                highest_latency_frame = frame_latency;
+            if (frame_latency < lowest_latency_frame)
+                lowest_latency_frame = frame_latency;
+            
+            total_latency_frames += frame_latency;
+
             if (numberOfFrames % 30 == 0) {
+                avg_latency_frame = total_latency_frames / 30;
+
                 time_t     currTime = time(0);
                 struct tm  tstruct;
                 char       bCurrTime[80];
@@ -1807,8 +1823,13 @@ void run_stream(std::string camera_serial, rs2::pipeline* pipe, rs2::align* alig
                 strftime(bCurrTime, sizeof(bCurrTime), "%Y-%m-%d.%X", &tstruct);
 
                 cout << detectedResultsFiltered.size() << " object(s) detected at " << bCurrTime  << endl;
-                //cout << "Pipeline Throughput FPS: " << fps << endl;
-                //cout << "Pipeline Latency (ms): " << chrono::duration_cast<chrono::milliseconds>(endTime - startTime).count() << endl;
+                // cout << "Avg. Pipeline Throughput FPS: " << ((isinf(fps)) ? "..." : std::to_string(fps)) << endl;
+                // cout << "Avg. Pipeline Latency (ms): " << avg_latency_frame << endl;
+                // cout << "Max. Pipeline Latency (ms): " << highest_latency_frame << endl;
+                // cout << "Min. Pipeline Latency (ms): " << lowest_latency_frame << endl;
+                highest_latency_frame = 0;
+                lowest_latency_frame = 9999;
+                total_latency_frames = 0;
             }
             
             //saveInferenceResultsAsVideo(img, detectedResultsFiltered);

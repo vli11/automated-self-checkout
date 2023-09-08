@@ -58,13 +58,13 @@ bool _allDecodersInitd = false;
 
 typedef struct DetectedResult {
 	int frameId;
-	float x;
-	float y;
-	float width;
-	float height;
+	int x;
+	int y;
+	int width;
+	int height;
 	float confidence;
 	int classId;
-	const char *classText;
+	char classText[1024];
 } DetectedResult;
 
 class MediaPipelineServiceInterface {
@@ -158,23 +158,23 @@ public:
                     return "filesrc location=" + mediaLocation + " ! qtdemux ! h264parse ! " +
                     "msdkh264dec ! msdkvpp scaling-mode=lowpower ! " +
                     "video/x-raw, width=" + std::to_string(video_width) + ", height=" + std::to_string(video_height) + 
-                    " ! videoconvert ! video/x-raw,format=BGR ! queue ! appsink drop=1 sync=0";
+                    " ! videoconvert ! video/x-raw,format=BGR ! queue ! appsink drop=1 sync=1";
                 else
                     return "filesrc location=" + mediaLocation + " ! qtdemux ! h264parse ! vaapidecodebin ! vaapipostproc" +
                     " width=" + std::to_string(video_width) +
                     " height=" + std::to_string(video_height) +
-                    " scale-method=fast ! videoconvert ! video/x-raw,format=BGR ! appsink drop=1";
+                    " scale-method=fast ! videoconvert ! video/x-raw,format=BGR ! appsink drop=1 sync=1";
                 case H265:
                 if (use_onevpl)
                     return "filesrc location=" + mediaLocation + " ! qtdemux ! h265parse ! " +
                     "msdkh265dec ! msdkvpp scaling-mode=lowpower ! " +
                     " video/x-raw, width=" + std::to_string(video_width) + ", height=" + std::to_string(video_height) +
-                    " ! videoconvert ! video/x-raw,format=BGR ! queue ! appsink drop=1 sync=0";
+                    " ! videoconvert ! video/x-raw,format=BGR ! queue ! appsink drop=1 sync=1";
                 else
                     return "filesrc location=" + mediaLocation + " ! qtdemux ! h265parse ! vaapidecodebin ! vaapipostproc" +
                     " width=" + std::to_string(video_width) +
                     " height=" + std::to_string(video_height) +
-                    " scale-method=fast ! videoconvert ! video/x-raw,format=BGR ! appsink drop=1";
+                    " scale-method=fast ! videoconvert ! video/x-raw,format=BGR ! appsink drop=1 sync=1";
                 default:
                     std::cout << "Video type not supported!" << std::endl;
                     return "";
@@ -389,7 +389,7 @@ public:
                     _video_input_height); 
                 obj.confidence = confidence;
                 obj.classId = (int) classId;
-                obj.classText = getClassLabelText(obj.classId).c_str();
+                strncpy(obj.classText, getClassLabelText(obj.classId).c_str(), sizeof(obj.classText));
 
                 // printf("Actual found: %f...%f,%f,%f,%f...%ix%i \n", 
                 //     confidence,
@@ -416,524 +416,6 @@ private:
     const char* INPUT_NAME = "image";
 };
 
-class FaceDetection0005 : public ObjectDetectionInterface {
-public:
-
-    FaceDetection0005() {
-        confidence_threshold = .5;
-        classes = 1;
-        std::vector<int> vmodel_input_shape = getModelInputShape();
-        std::copy(vmodel_input_shape.begin(), vmodel_input_shape.end(), model_input_shape);
-    }
-
-    const char* getModelName() {
-        return MODEL_NAME;
-    }
-
-    const uint64_t getModelVersion() {
-        return MODEL_VERSION;
-    }
-
-    const char* getModelInputName() {
-        return INPUT_NAME;
-    }
-
-    const size_t getModelDimCount() {
-        return MODEL_DIM_COUNT;
-    }
-
-    const std::vector<int> getModelInputShape() {
-        std::vector<int> shape{1, 3, 800, 800};
-        return shape;
-    }
-
-    const std::string getClassLabelText(int classIndex) {
-        return (classIndex == 1 ? "Face" : "Unknown");
-    }
-
-    /*
-    * Reference: FaceDetection
-    * TODO: Move a shared lib.
-    */
-    void postprocess(const int64_t* output_shape, const void* voutputData, const size_t bytesize, const uint32_t dimCount, std::vector<DetectedResult> &detectedResults)
-    {
-        if (!voutputData || !output_shape) {
-            // nothing to do
-            return;
-        }
-        // Input Info
-        // input.1  - 1,3,H,W
-
-        // Output Info
-        // data - 1, 1, 200, 7
-        // [image_id, label, conf, x_min, y_min, x_max, y_max],
-        const int numberOfDetections = output_shape[2];
-        const int objectSize = output_shape[3];
-        const float* outData = reinterpret_cast<const float*>(voutputData);
-        std::vector<int> input_shape = getModelInputShape();
-        int network_h =  input_shape[2];
-        int network_w =  input_shape[3];
-        // printf("Network %f %f numDets %d outputDims: %d imageId: %f label: %f  \n",
-        //     network_h, network_w, numberOfDetections, objectSize, outData[0 * objectSize + 0], outData[0 * objectSize + 1]);
-
-        for (int i = 0; i < numberOfDetections; i++)
-        {
-            float image_id = outData[i * objectSize + 0];
-            if (image_id < 0)
-                break;
-
-            float confidence = outData[i * objectSize + 2];
-
-            //printf("Confidence found: %f\n", confidence);
-
-            if (confidence > confidence_threshold ) {
-                //printf("Confidence found: %f\n", confidence);
-                DetectedResult obj;
-                obj.x = std::clamp(static_cast<int>(outData[i * objectSize + 3] * _video_input_width), 0, _video_input_width); 
-                obj.y = std::clamp(static_cast<int>(outData[i * objectSize + 4] * _video_input_height), 0, _video_input_height); 
-                obj.width = std::clamp(static_cast<int>(outData[i * objectSize + 5] * _video_input_width - obj.x), 0, _video_input_width); 
-                obj.height = std::clamp(static_cast<int>(outData[i * objectSize + 6] * _video_input_height - obj.y), 0, _video_input_height); 
-                obj.confidence = confidence;
-                obj.classId = outData[i * objectSize + 1];
-                obj.classText = getClassLabelText(obj.classId).c_str();
-                
-                if (obj.classId != 1)
-                    printf("SHOULDN'T OCCUR:---------found: %s\n", obj.classText);
-                detectedResults.push_back(obj);
-            } // end if confidence
-        } // end for
-    } // End of FaceDetect Post-Processing
-
-
-private:
-    /* Model Serving Info for https://github.com/openvinotoolkit/open_model_zoo/tree/master/models/intel/face-detection-retail-0005 */
-    // FaceDet - 1x3x300x300 NCHW
-    const char* MODEL_NAME = "face_detection";
-    const uint64_t MODEL_VERSION = 0;
-    const char* INPUT_NAME = "input.1";
-};
-
-class SSD : public ObjectDetectionInterface {
-public:
-
-    SSD() {
-        confidence_threshold = .9;
-        classes = 2;
-        std::vector<int> vmodel_input_shape = getModelInputShape();
-        std::copy(vmodel_input_shape.begin(), vmodel_input_shape.end(), model_input_shape);
-
-        //std::cout << "Using object detection type person-detection-retail-0013" << std::endl;
-    }
-
-    const char* getModelName() {
-        return MODEL_NAME;
-    }
-
-    const uint64_t getModelVersion() {
-        return MODEL_VERSION;
-    }
-
-    const char* getModelInputName() {
-        return INPUT_NAME;
-    }
-
-    const size_t getModelDimCount() {
-        return MODEL_DIM_COUNT;
-    }
-
-    const std::vector<int> getModelInputShape() {
-        std::vector<int> shape{1, 320, 544, 3};
-        return shape;
-    }
-
-    const std::string getClassLabelText(int classIndex) {
-        return (classIndex == 1 ? "Person" : "Unknown");
-    }
-
-    /*
-    * Reference: SSD
-    * TODO: Move a shared lib.
-    */
-    void postprocess(const int64_t* output_shape, const void* voutputData, const size_t bytesize, const uint32_t dimCount, std::vector<DetectedResult> &detectedResults)
-    {
-        if (!voutputData || !output_shape) {
-            // nothing to do
-            return;
-        }
-            // detection_out 4 1 1 200 7 5600 1
-        const int numberOfDetections = output_shape[2];
-        const int objectSize = output_shape[3];
-        const float* outData = reinterpret_cast<const float*>(voutputData);
-        std::vector<int> input_shape = getModelInputShape();
-        float network_h = (float) input_shape[1];
-        float network_w = (float) input_shape[2];
-        //printf("Network %f %f numDets %d \n", network_h, network_w, numberOfDetections);
-
-        for (int i = 0; i < numberOfDetections; i++)
-        {
-            float image_id = outData[i * objectSize + 0];
-            if (image_id < 0)
-                break;
-
-            float confidence = outData[i * objectSize + 2];
-
-            if (confidence > confidence_threshold ) {
-                DetectedResult obj;
-                        obj.x = std::clamp(outData[i * objectSize + 3] * network_w, 0.f, static_cast<float>(network_w)); // std::clamp(outData[i * objectSize +3], 0.f,network_w);
-                        obj.y = std::clamp(outData[i * objectSize + 4] * network_h, 0.f, static_cast<float>(network_h)); //std::clamp(outData[i * objectSize +4], 0.f,network_h);
-                        obj.width = std::clamp(outData[i * objectSize + 5] * network_w, 0.f, static_cast<float>(network_w)) - obj.x; // std::clamp(outData[i*objectSize+5],0.f,network_w-obj.x);
-                        obj.height = std::clamp(outData[i * objectSize + 6] * network_h, 0.f, static_cast<float>(network_h)) - obj.y; // std::clamp(outData[i*objectSize+6],0.f, network_h-obj.y);
-                obj.confidence = confidence;
-                            obj.classId = outData[i * objectSize + 1];
-                            obj.classText = getClassLabelText(obj.classId).c_str();
-                //if (strncmp(obj.classText, "person", sizeof("person") != 0 ))
-                //	continue;
-                if (obj.classId != 1)
-                printf("---------found: %s\n", obj.classText);
-
-                            detectedResults.push_back(obj);
-
-            } // end if confidence
-        } // end for
-    } // End of SSD Person Detection Post-Processing
-
-
-private:
-    /* Model Serving Info for https://github.com/openvinotoolkit/open_model_zoo/tree/master/models/intel/person-detection-retail-0013 */
-    // SSD - 1x3x320x544 NCHW
-    const char* MODEL_NAME = "people-detection-retail-0013";
-    const uint64_t MODEL_VERSION = 0;
-    const char* INPUT_NAME = "data";
-};
-
-class Yolov5 : public ObjectDetectionInterface
-{
-public:
-
-    Yolov5()
-    {
-        confidence_threshold = .5;
-        classes = 80;
-        std::vector<int> vmodel_input_shape = getModelInputShape();
-        std::copy(vmodel_input_shape.begin(), vmodel_input_shape.end(), model_input_shape);
-
-        //std::cout << "Using object detection type Yolov5" << std::endl;
-    }
-
-    const char* getModelName() {
-        return MODEL_NAME;
-    }
-
-    const uint64_t getModelVersion() {
-        return MODEL_VERSION;
-    }
-
-    const char* getModelInputName() {
-        return INPUT_NAME;
-    }
-
-    const size_t getModelDimCount() {
-        return MODEL_DIM_COUNT;
-    }
-
-    const std::vector<int> getModelInputShape() {
-        std::vector<int> shape{1, 416, 416, 3};
-        return shape;
-    }
-
-    const std::string getClassLabelText(int classIndex) {
-        if (classIndex > 80)
-            return "Unknown";
-        return labels[classIndex];
-    }
-
-    int calculateEntryIndex(int totalCells, int lcoords, size_t lclasses, int location, int entry) {
-        int n = location / totalCells;
-        int loc = location % totalCells;
-        return (n * (lcoords + lclasses) + entry) * totalCells + loc;
-    }
-
-    // Yolov5
-    void postprocess(const int64_t* output_shape, const void* voutputData, const size_t bytesize, const uint32_t dimCount, std::vector<DetectedResult> &detectedResults)
-    {
-        if (!voutputData || !output_shape) {
-            // nothing to do
-            return;
-        }
-
-        const int regionCoordsCount  = dimCount;
-        const int sideH = output_shape[2]; // NCHW
-        const int sideW = output_shape[3]; // NCHW
-        const int regionNum = 3;
-        std::vector<int> input_shape = getModelInputShape();
-        const int scaleH = input_shape[1]; // NHWC
-        const int scaleW = input_shape[2]; // NHWC
-
-        auto entriesNum = sideW * sideH;
-        const float* outData = reinterpret_cast<const float*>(voutputData);
-        int original_im_w = _video_input_width;
-        int original_im_h = _video_input_height;
-
-        auto postprocessRawData = sigmoid; //sigmoid or linear
-
-        for (int i = 0; i < entriesNum; ++i) {
-            int row = i / sideW;
-            int col = i % sideW;
-
-            for (int n = 0; n < regionNum; ++n) {
-
-                int obj_index = calculateEntryIndex(entriesNum,  regionCoordsCount, classes + 1 /* + confidence byte */, n * entriesNum + i,regionCoordsCount);
-                int box_index = calculateEntryIndex(entriesNum, regionCoordsCount, classes + 1, n * entriesNum + i, 0);
-                float outdata = outData[obj_index];
-                float scale = postprocessRawData(outData[obj_index]);
-
-                if (scale >= confidence_threshold) {
-                    float x, y,height,width;
-                    x = static_cast<float>((col + postprocessRawData(outData[box_index + 0 * entriesNum])) / sideW * original_im_w);
-                    y = static_cast<float>((row + postprocessRawData(outData[box_index + 1 * entriesNum])) / sideH * original_im_h);
-                    height = static_cast<float>(std::pow(2*postprocessRawData(outData[box_index + 3 * entriesNum]),2) * anchors_13[2 * n + 1] * original_im_h / scaleH  );
-                    width = static_cast<float>(std::pow(2*postprocessRawData(outData[box_index + 2 * entriesNum]),2) * anchors_13[2 * n] * original_im_w / scaleW  );
-
-                    DetectedResult obj;
-                    obj.x = std::clamp(x - width / 2, 0.f, static_cast<float>(original_im_w));
-                    obj.y = std::clamp(y - height / 2, 0.f, static_cast<float>(original_im_h));
-                    obj.width = std::clamp(width, 0.f, static_cast<float>(original_im_w - obj.x));
-                    obj.height = std::clamp(height, 0.f, static_cast<float>(original_im_h - obj.y));
-
-                    for (size_t j = 0; j < classes; ++j) {
-                        int class_index = calculateEntryIndex(entriesNum, regionCoordsCount, classes + 1, n * entriesNum + i, regionCoordsCount + 1 + j);
-                        float prob = scale * postprocessRawData(outData[class_index]);
-
-                        if (prob >= confidence_threshold) {
-                            obj.confidence = prob;
-                            obj.classId = j;
-                            obj.classText = getClassLabelText(j).c_str();
-                            detectedResults.push_back(obj);
-                        }
-                    }
-                } // end else
-            } // end for
-        } // end for
-    }
-// End of Yolov5 Post-Processing
-
-private:
-    /* Yolov5s Model Serving Info */
-    // YOLOV5 - 1x3x416x416 NCHW
-    const char* MODEL_NAME = "yolov5s";
-    const uint64_t MODEL_VERSION = 0;
-    const char* INPUT_NAME = "images";
-
-    // Anchors by region/output layer
-    const float anchors_52[6] = {
-        10.0,
-        13.0,
-        16.0,
-        30.0,
-        33.0,
-        23.0
-    };
-
-    const float anchors_26[6] = {
-        30.0,
-        61.0,
-        62.0,
-        45.0,
-        59.0,
-        119.0
-    };
-
-    const float anchors_13[6] = {
-        116.0,
-        90.0,
-        156.0,
-        198.0,
-        373.0,
-        326.0
-    };
-
-    const std::string labels[80] = {
-        "person",
-        "bicycle",
-        "car",
-        "motorbike",
-        "aeroplane",
-        "bus",
-        "train",
-        "truck",
-        "boat",
-        "traffic light",
-        "fire hydrant",
-        "stop sign",
-        "parking meter",
-        "bench",
-        "bird",
-        "cat",
-        "dog",
-        "horse",
-        "sheep",
-        "cow",
-        "elephant",
-        "bear",
-        "zebra",
-        "giraffe",
-        "backpack",
-        "umbrella",
-        "handbag",
-        "tie",
-        "suitcase",
-        "frisbee",
-        "skis",
-        "snowboard",
-        "sports ball",
-        "kite",
-        "baseball bat",
-        "baseball glove",
-        "skateboard",
-        "surfboard",
-        "tennis racket",
-        "bottle",
-        "wine glass",
-        "cup",
-        "fork",
-        "knife",
-        "spoon",
-        "bowl",
-        "banana",
-        "apple",
-        "sandwich",
-        "orange",
-        "broccoli",
-        "carrot",
-        "hot dog",
-        "pizza",
-        "donut",
-        "cake",
-        "chair",
-        "sofa",
-        "pottedplant",
-        "bed",
-        "diningtable",
-        "toilet",
-        "tvmonitor",
-        "laptop",
-        "mouse",
-        "remote",
-        "keyboard",
-        "cell phone",
-        "microwave",
-        "oven",
-        "toaster",
-        "sink",
-        "refrigerator",
-        "book",
-        "clock",
-        "vase",
-        "scissors",
-        "teddy bear",
-        "hair drier",
-        "toothbrush"
-    };
-
-};
-
-class TextDetection : public ObjectDetectionInterface {
-public:
-
-    TextDetection() {
-        confidence_threshold = .2;
-        classes = 1;
-        std::vector<int> vmodel_input_shape = getModelInputShape();
-        std::copy(vmodel_input_shape.begin(), vmodel_input_shape.end(), model_input_shape);
-
-        //std::cout << "Using object detection type text-detection-00012" << std::endl;
-    }
-
-    const char* getModelName() {
-        return MODEL_NAME;
-    }
-
-    const uint64_t getModelVersion() {
-        return MODEL_VERSION;
-    }
-
-    const char* getModelInputName() {
-        return INPUT_NAME;
-    }
-
-    const size_t getModelDimCount() {
-        return MODEL_DIM_COUNT;
-    }
-
-    const std::vector<int> getModelInputShape() {
-        std::vector<int> shape{1, 704, 704, 3};
-        return shape;
-    }
-
-    const std::string getClassLabelText(int classIndex) {
-        return "text";
-    }
-
-    /*
-    * Reference: https://github.com/openvinotoolkit/model_server/blob/4d4c067baec66f01b1f17795406dd01e18d8cf6a/demos/horizontal_text_detection/python/horizontal_text_detection.py
-    * TODO: Move a shared lib.
-    */
-    void postprocess(const int64_t* output_shape, const void* voutputData, const size_t bytesize, const uint32_t dimCount, std::vector<DetectedResult> &detectedResults)
-    {
-        if (!voutputData || !output_shape) {
-            // nothing to do
-            return;
-        }
-        // boxes shape - N,5 or 100,5
-        const int numberOfDetections = output_shape[1];
-        const int objectSize = output_shape[2];
-        const float* outData = reinterpret_cast<const float*>(voutputData);
-        std::vector<int> input_shape = getModelInputShape();
-        float network_h = (float) input_shape[1];
-        float network_w = (float) input_shape[2];
-        float scaleW = 1.0;
-        float scaleH = 1.0;
-
-        if (_render) {
-            scaleW = (float)_window_width / network_w;
-            scaleH = (float)_window_height / network_w;
-        }
-
-        //printf("----->Network %f %f numDets %d objsize %d \n", network_h, network_w, numberOfDetections, objectSize);
-
-        for (int i = 0; i < numberOfDetections; i++)
-        {
-            float confidence = outData[i * objectSize + 4];
-            //printf("------>text conf: %f\n", outData[i * objectSize + 4]);
-
-            if (confidence > confidence_threshold ) {
-                DetectedResult obj;
-                obj.x = outData[i * objectSize + 0] * scaleW;
-                obj.y = outData[i * objectSize + 1] * scaleH;
-                // Yolo/SSD is not bottom-left/bottom-right so make consistent by subtracking
-                obj.width = outData[i * objectSize + 2] * scaleW - obj.x;
-                obj.height = outData[i * objectSize + 3] * scaleH - obj.y;
-                obj.confidence = confidence;
-                obj.classId = 0; // only text can be detected
-                obj.classText = getClassLabelText(obj.classId).c_str();
-                //printf("Adding obj %f %f %f %f with label %s\n",obj.x, obj.y, obj.width, obj.height, obj.classText);
-                detectedResults.push_back(obj);
-
-            } // end if confidence
-        } // end for
-    } // End of Text-Det Post-Processing
-
-
-private:
-    /* Model Serving Info :
-      https://github.com/dlstreamer/pipeline-zoo-models/blob/main/storage/horizontal-text-detection-0002/
-      https://github.com/openvinotoolkit/model_server/blob/4d4c067baec66f01b1f17795406dd01e18d8cf6a/demos/horizontal_text_detection/python/horizontal_text_detection.py
-    */
-    const char* MODEL_NAME = "text-detect-0002";
-    const uint64_t MODEL_VERSION = 0;
-    const char* INPUT_NAME = "input";
-};
-
 GStreamerMediaPipelineService* _mediaService = NULL;
 std::string _user_request;
 
@@ -951,21 +433,7 @@ bool setActiveModel(int detectionType, ObjectDetectionInterface** objDet)
 {
     if (objDet == NULL)
         return false;
-
-    if (detectionType == 0) {
-        *objDet = new Yolov5();
-    }
-    else if(detectionType == 1) {
-        *objDet = new SSD();
-    }
-    else if(detectionType == 2) {
-        *objDet = new FaceDetection0005();
-    }
-    else if(detectionType == 3) {
-        *objDet = new GetiYoloX();
-    }
-    else
-        std::cout << "ERROR: detectionType option must be 0 (yolov5) or 1 (people-detection-retail-0013) or 3 face detection" << std::endl;
+    *objDet = new GetiYoloX();
     return true;
 }
 
@@ -1028,6 +496,19 @@ void displayGUIInferenceResults(cv::Mat analytics_frame, std::vector<DetectedRes
             cv::Point( (int)x1, (int)y1 ),
             cv::Scalar(255, 0, 0),
             2, cv::LINE_8 );
+
+        cv::Size textsize = cv::getTextSize(obj.classText, cv::FONT_HERSHEY_PLAIN, 1, 0,0);
+
+        cv::rectangle(analytics_frame, 
+            cv::Point( (int)(x0),(int)(y0-20) ), 
+            cv::Point((int)x0 + textsize.width, (int)y0 + textsize.height), 
+            CV_RGB(0, 0, 0), 
+            -1);
+
+        cv::putText(analytics_frame, 
+            obj.classText, 
+            cv::Size((int)x0, (int)y0), 
+            cv::FONT_HERSHEY_PLAIN, 1, CV_RGB(255, 255, 255), 1);
     } // end for
 
     // std::string fps_msg = (througput == 0) ? "..." : std::to_string(througput) + "fps";
@@ -1075,7 +556,7 @@ std::string getVideoPipelineText(std::string mediaPath, ObjectDetectionInterface
         modelFrameShape = textDet->getModelInputShape();
     }
 
-    int frame_width = modelFrameShape[1];
+    int frame_width = modelFrameShape[3];
     int frame_height = modelFrameShape[2];
 
     if (_render)
@@ -1413,7 +894,7 @@ void run_stream(std::string mediaPath, GstElement* pipeline, GstElement* appsink
         if (numberOfSkipFrames <= 120) // allow warm up for latency/fps measurements
         {
             initTime = std::chrono::high_resolution_clock::now();
-            numberOfFrames = 1;
+            numberOfFrames = 0;
 
             //printf("Too early...Skipping frames..\n");
         }
@@ -1431,7 +912,23 @@ void run_stream(std::string mediaPath, GstElement* pipeline, GstElement* appsink
             if (_render)
                 displayGUIInferenceResults(img, detectedResultsFiltered, latencyTime, fps);                
 
+            static int highest_latency_frame = 0;
+            static int lowest_latency_frame = 9999;
+            static int avg_latency_frame = 0;
+            static int total_latency_frames = 0;
+
+            int frame_latency = chrono::duration_cast<chrono::milliseconds>(endTime - startTime).count();
+            
+            if (frame_latency > highest_latency_frame)
+                highest_latency_frame = frame_latency;
+            if (frame_latency < lowest_latency_frame)
+                lowest_latency_frame = frame_latency;
+            
+            total_latency_frames += frame_latency;
+
             if (numberOfFrames % 30 == 0) {
+                avg_latency_frame = total_latency_frames / 30;
+
                 time_t     currTime = time(0);
                 struct tm  tstruct;
                 char       bCurrTime[80];
@@ -1440,8 +937,13 @@ void run_stream(std::string mediaPath, GstElement* pipeline, GstElement* appsink
                 strftime(bCurrTime, sizeof(bCurrTime), "%Y-%m-%d.%X", &tstruct);
 
                 cout << detectedResultsFiltered.size() << " object(s) detected at " << bCurrTime  << endl;
-                //cout << "Pipeline Throughput FPS: " << fps << endl;
-                //cout << "Pipeline Latency (ms): " << chrono::duration_cast<chrono::milliseconds>(endTime - startTime).count() << endl;
+                cout << "Avg. Pipeline Throughput FPS: " << ((isinf(fps)) ? "..." : std::to_string(fps)) << endl;
+                cout << "Avg. Pipeline Latency (ms): " << avg_latency_frame << endl;
+                cout << "Max. Pipeline Latency (ms): " << highest_latency_frame << endl;
+                cout << "Min. Pipeline Latency (ms): " << lowest_latency_frame << endl;
+                highest_latency_frame = 0;
+                lowest_latency_frame = 9999;
+                total_latency_frames = 0;
             }
             
             //saveInferenceResultsAsVideo(img, detectedResultsFiltered);
@@ -1492,6 +994,31 @@ void print_usage(const char* programName) {
         << "video_type is 0 for AVC or 1 for HEVC\n";
 }
 
+int get_running_servers() {
+    char buffer[128];
+    //string cmd = "cids=$(docker ps  --filter=\"name=gst-ovms\" -q -a); cid_count=`echo \"$cids\" | wc -w`; echo $cid_count";
+    string cmd = "echo $cid_count";
+    std::string result = "";
+    FILE* pipe = popen(cmd.c_str(), "r");
+    
+    if (!pipe) 
+        throw std::runtime_error("popen() failed!");
+
+    try 
+    {
+        while (fgets(buffer, sizeof buffer, pipe) != NULL) 
+        {
+            result += buffer;
+        }
+    } 
+    catch (...) 
+    {
+        pclose(pipe);
+        throw;
+    }
+    pclose(pipe);
+    return std::stoi(result.c_str());
+}
 
 int main(int argc, char** argv) {
     std::cout << std::setprecision(2) << std::fixed;
@@ -1499,8 +1026,10 @@ int main(int argc, char** argv) {
     // Use GST pipelines for media HWA decode and pre-procesing
     _mediaService = new GStreamerMediaPipelineService();
 
-    _server_grpc_port = 9178;
-    _server_http_port = 11338;
+    // get valid server port numbers
+    int running_servers = get_running_servers();
+    _server_grpc_port = 9178 + running_servers;
+    _server_http_port = 11338 + running_servers;
 
     _videoStreamPipeline = "people-detection.mp4";
 
@@ -1518,8 +1047,7 @@ int main(int argc, char** argv) {
         _use_onevpl = std::stoi(argv[2]);
         _render = std::stoi(argv[3]);
         _renderPortrait = std::stoi(argv[4]);
-        _videoType = (MediaPipelineServiceInterface::VIDEO_TYPE) std::stoi(argv[5]);
-        _detectorModel = 3; // use geti-yolox model
+        _videoType = (MediaPipelineServiceInterface::VIDEO_TYPE) std::stoi(argv[5]);        
 
         if (_renderPortrait) {
             int tmp = _window_width;
