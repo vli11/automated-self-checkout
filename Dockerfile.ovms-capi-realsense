@@ -5,27 +5,11 @@
 #
 
 # -----------------------------------------------------------
-# base_build requires existing OVMS docker image 
-ARG BASE_IMAGE=ubuntu:22.04
-FROM $BASE_IMAGE as base_build
-
-SHELL ["/bin/bash", "-xo", "pipefail", "-c"]
-
-RUN groupadd --gid 5000 ovms && useradd --home-dir /home/ovms --create-home --uid 5000 \
-             --gid 5000 --shell /bin/bash --skel /dev/null ovms
-
-COPY ovms.tar.gz /
-RUN tar -xf ovms.tar.gz
-RUN chown -R ovms:ovms /ovms
-# -----------------------------------------------------------
+ARG BASE_IMAGE=openvino/model_server:2023.0-gpu
 FROM $BASE_IMAGE as release
 ENV DEBIAN_FRONTEND=noninteractive
 SHELL ["/bin/bash", "-c"]
 WORKDIR /
-RUN	set -e ; \
-	set -x ; \
-        groupadd --gid 5000 ovms ; \
-        useradd --home-dir /home/ovms --create-home --uid 5000 --gid 5000 --groups 39,44 --shell /bin/bash --skel /dev/null ovms
 
 # Install dependencies for compiling ocv4.7.0 and the project samples
 ARG BUILD_DEPENDENCIES="cmake build-essential autoconf pkg-config \
@@ -96,14 +80,12 @@ intel-opencl-icd intel-level-zero-gpu level-zero intel-media-va-driver-non-free 
 
 
 # COPY OVMS runtime
-COPY --from=base_build /ovms /ovms
-# Remove older builds of OpenCV
+COPY ovms.tar.gz /
+RUN tar -xf ovms.tar.gz
+#RUN find / -name *ovms*.so
 RUN rm /ovms/lib/*opencv*;
 
 # Copy C-API sources
-#RUN DEBIAN_FRONTEND=noninteractive apt install -y jq -y && \
-#    rm -rf /var/lib/apt/lists/* && rm -rf /tmp/*
-
 ENV LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu/:/usr/local/lib/x86_64-linux-gnu/:/usr/local/lib:/ovms/lib:$LD_LIBRARY_PATH
 COPY configs/realsense-ovms /home/intel/realsense-ovms
 COPY get-media-codec.sh /home/intel/realsense-ovms/

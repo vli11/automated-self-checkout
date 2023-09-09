@@ -70,15 +70,11 @@ make "-j10" && \
 make install
 
 # COPY OVMS runtime
-#COPY --from=base_build /ovms /ovms
 COPY ovms.tar.gz /
 RUN tar -xf ovms.tar.gz
-#RUN chown -R ovms:ovms /ovms
-RUN find / -name *ovms*.so
+#RUN find / -name *ovms*.so
 RUN rm /ovms/lib/*opencv*;
 
-#COPY demos /ovms/demos
-#WORKDIR /ovms/demos
 
 # Copy C-API sources
 #RUN mv model_repo configs
