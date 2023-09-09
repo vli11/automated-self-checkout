@@ -29,20 +29,11 @@ clean:
 clean-simulator:
 	./clean-containers.sh camera-simulator
 
-build-ovms-realsense-client:
+build-ovms-realsense-client: build-ovms-server-22.04
 	echo "Building RealSense OVMS C-API Client HTTPS_PROXY=${HTTPS_PROXY} HTTP_PROXY=${HTTP_PROXY}"
 	rm -vrf ovms.tar.gz 
-	docker run $(OVMS_CPP_DOCKER_IMAGE)-pkg:$(OVMS_CPP_IMAGE_TAG) bash -c \
-      "tar -c -C / ovms.tar.gz ; sleep 2" | tar -x
-	
-	# # Remove old docker image
-	-docker rm -v $$(docker ps -a -q -f status=exited -f ancestor=$(OVMS_CPP_DOCKER_IMAGE)-pkg:$(OVMS_CPP_IMAGE_TAG))
-	
+	wget -O ovms.tar.gz https://github.com/openvinotoolkit/model_server/releases/download/v2023.0/ovms_ubuntu22.tar.gz
 	# # Build CAPI docker image
-	# cp -vR capi_files/* capi/$(DIST_OS)/
-	# cp *.mp4 capi/$(DIST_OS)/demos
-	# cp -vR configs capi/$(DIST_OS)/demos
-	# cp -vR model_repo capi/$(DIST_OS)/demos
 	docker build $(NO_CACHE_OPTION) -f Dockerfile.ovms-capi-realsense . \
 		--build-arg http_proxy=$(HTTP_PROXY) \
 		--build-arg https_proxy="$(HTTPS_PROXY)" \
@@ -51,21 +42,13 @@ build-ovms-realsense-client:
 		--progress=plain \
 		-t $(OVMS_CPP_DOCKER_IMAGE)-capi-realsense:$(OVMS_CPP_IMAGE_TAG)
 
-build-ovms-gst-client:
+build-ovms-gst-client: build-ovms-server-22.04
 	echo "Building GStreamer OVMS C-API Client HTTPS_PROXY=${HTTPS_PROXY} HTTP_PROXY=${HTTP_PROXY}"
 	# Build C-API for optimized distributed architecture. Includes GST for HWA media	
 	rm -vrf ovms.tar.gz 
-	docker run $(OVMS_CPP_DOCKER_IMAGE)-pkg:$(OVMS_CPP_IMAGE_TAG) bash -c \
-      "tar -c -C / ovms.tar.gz ; sleep 2" | tar -x
-	
-	# # Remove old docker image
-	-docker rm -v $$(docker ps -a -q -f status=exited -f ancestor=$(OVMS_CPP_DOCKER_IMAGE)-pkg:$(OVMS_CPP_IMAGE_TAG))
-	
+	wget -O ovms.tar.gz https://github.com/openvinotoolkit/model_server/releases/download/v2023.0/ovms_ubuntu22.tar.gz
+
 	# # Build CAPI docker image
-	# cp -vR capi_files/* capi/$(DIST_OS)/
-	# cp *.mp4 capi/$(DIST_OS)/demos
-	# cp -vR configs capi/$(DIST_OS)/demos
-	# cp -vR model_repo capi/$(DIST_OS)/demos
 	docker build $(NO_CACHE_OPTION) -f Dockerfile.ovms-capi-gst . \
 		--build-arg http_proxy=$(HTTP_PROXY) \
 		--build-arg https_proxy="$(HTTPS_PROXY)" \

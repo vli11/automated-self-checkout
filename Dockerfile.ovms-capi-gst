@@ -5,34 +5,11 @@
 #
 
 # -----------------------------------------------------------
-# base_build requires existing OVMS docker image 
-ARG BASE_IMAGE=ubuntu:22.04
-FROM $BASE_IMAGE as base_build
-
-SHELL ["/bin/bash", "-xo", "pipefail", "-c"]
-
-RUN groupadd --gid 5000 ovms && useradd --home-dir /home/ovms --create-home --uid 5000 \
-             --gid 5000 --shell /bin/bash --skel /dev/null ovms
-
-COPY ovms.tar.gz /
-RUN tar -xf ovms.tar.gz
-RUN chown -R ovms:ovms /ovms
-# -----------------------------------------------------------
+ARG BASE_IMAGE=openvino/model_server:2023.0-gpu
 FROM $BASE_IMAGE as release
 ENV DEBIAN_FRONTEND=noninteractive
 SHELL ["/bin/bash", "-c"]
 WORKDIR /
-RUN	set -e ; \
-	set -x ; \
-        groupadd --gid 5000 ovms ; \
-        useradd --home-dir /home/ovms --create-home --uid 5000 --gid 5000 --groups 39,44 --shell /bin/bash --skel /dev/null ovms
-
-#COPY --from=base_build /ovms /ovms
-
-# Remove older builds of OpenCV
-#RUN rm /ovms/lib/*opencv*; 
-
-#ARG BUILD_DEPENDENCIES="build-essential git cmake libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev libgstreamer-plugins-bad1.0-dev libxml2 curl libpugixml1v5 libtbb2 gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly gstreamer1.0-libav libgtk2.0-dev libhdf5-serial-dev libvtk9-dev"
 
 # Install dependencies for compiling ocv4.7.0
 ARG BUILD_DEPENDENCIES="cmake build-essential git-gui python3 python3-pip flex bison clang libgtk2.0-dev libhdf5-serial-dev libvtk9-dev libtbb2 libxml2 curl libpugixml1v5"
@@ -47,7 +24,6 @@ intel-opencl-icd intel-level-zero-gpu level-zero intel-media-va-driver-non-free 
 
 # Install GST dependencies
 RUN apt -y update; DEBIAN_FRONTEND=noninteractive apt install -y libva-dev autoconf libtool libpciaccess-dev libssl-dev pkg-config libdrm-dev libgbm-dev libcogl-pango-dev libudev-dev lld libx11-xcb-dev libpciaccess-dev nasm yasm libx11-dev libxcb-present-dev libxcb-dri3-dev xorg xorg-dev libgl1-mesa-glx libgl1-mesa-dev meson libgudev-1.0-dev
-#RUN pip3 install meson
 
 # Install OneVPL CPU & GPU Support
 RUN apt -y update; DEBIAN_FRONTEND=noninteractive apt install -y wget unzip
@@ -94,8 +70,11 @@ make "-j10" && \
 make install
 
 # COPY OVMS runtime
-COPY --from=base_build /ovms /ovms
-# Remove older builds of OpenCV
+#COPY --from=base_build /ovms /ovms
+COPY ovms.tar.gz /
+RUN tar -xf ovms.tar.gz
+#RUN chown -R ovms:ovms /ovms
+RUN find / -name *ovms*.so
 RUN rm /ovms/lib/*opencv*;
 
 #COPY demos /ovms/demos
