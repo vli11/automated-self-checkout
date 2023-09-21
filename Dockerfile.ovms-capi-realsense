@@ -80,8 +80,8 @@ intel-opencl-icd intel-level-zero-gpu level-zero intel-media-va-driver-non-free 
 
 
 # COPY OVMS runtime
-COPY ovms.tar.gz /
-RUN tar -xf ovms.tar.gz
+COPY ovms.tar.gz .
+RUN tar -xf ovms.tar.gz -C /
 #RUN find / -name *ovms*.so
 RUN rm /ovms/lib/*opencv*;
 
