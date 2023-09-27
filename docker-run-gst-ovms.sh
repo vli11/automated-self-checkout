@@ -26,7 +26,7 @@ update_media_device_engine() {
 
 # Notes:
 # Single JQ node update
-#  jsonStr=`jq --arg name facedet --arg device GPU.0 '( .model_config_list[] | select(.config.name == $name) ).device |= $device' <<< "$jsonStr"`
+#  jsonStr=`jq --arg name facedet --arg device GPU.0 '(.model_config_list |= map(select(.config.name == $name).config.target_device=$device))' <<< "$jsonStr"`
 # All JQ nodes update
 #  jsonStr=`jq --arg device GPU.0 '(.model_config_list[].config.target_device=$device)' <<< "$jsonStr"`
 
@@ -48,17 +48,17 @@ update_ovms_config_face_detection() {
 		if [ "$HAS_ARC" == "1" ] || [ "$HAS_FLEX_170" == "1" ]
 		then
 			TARGET_GPU="GPU.1"
-			ovms_jsonCfg=`jq --arg name face_detection --arg device GPU.1 '( .model_config_list[] | select(.config.name == $name) ).device |= $device' <<< "$ovms_jsonCfg"`
-			ovms_jsonCfg=`jq --arg name face_landmarks --arg device GPU.0 '( .model_config_list[] | select(.config.name == $name) ).device |= $device' <<< "$ovms_jsonCfg"`
+			ovms_jsonCfg=`jq --arg name face_detection --arg device GPU.1 '(.model_config_list |= map(select(.config.name == $name).config.target_device=$device))' <<< "$ovms_jsonCfg"`
+			ovms_jsonCfg=`jq --arg name face_landmarks --arg device GPU.0 '(.model_config_list |= map(select(.config.name == $name).config.target_device=$device))' <<< "$ovms_jsonCfg"`
 		elif [ "$HAS_FLEX_140" == "1" ] 
 		then
 			TARGET_GPU="GPU.0"
-			ovms_jsonCfg=`jq --arg name face_detection --arg device GPU.0 '(.model_config_list |= map(select(.config.name == "face_detection").config.target_device=$device))' <<< "$ovms_jsonCfg"`
-			ovms_jsonCfg=`jq --arg name face_landmarks --arg device CPU '( .model_config_list |= map(select(.config.name == "face_landmarks").config.target_device=$device))' <<< "$ovms_jsonCfg"`
+			ovms_jsonCfg=`jq --arg name face_detection --arg device GPU.0 '(.model_config_list |= map(select(.config.name == $name).config.target_device=$device))' <<< "$ovms_jsonCfg"`
+			ovms_jsonCfg=`jq --arg name face_landmarks --arg device CPU '( .model_config_list |= map(select(.config.name == $name).config.target_device=$device))' <<< "$ovms_jsonCfg"`
 		else
 			TARGET_GPU="GPU.0"
-			ovms_jsonCfg=`jq --arg name face_detection --arg device GPU.0 '(.model_config_list |= map(select(.config.name == "face_detection").config.target_device=$device))' <<< "$ovms_jsonCfg"`
-			ovms_jsonCfg=`jq --arg name face_landmarks --arg device CPU '( .model_config_list |= map(select(.config.name == "face_landmarks").config.target_device=$device))' <<< "$ovms_jsonCfg"`
+			ovms_jsonCfg=`jq --arg name face_detection --arg device GPU.0 '(.model_config_list |= map(select(.config.name == $name).config.target_device=$device))' <<< "$ovms_jsonCfg"`
+			ovms_jsonCfg=`jq --arg name face_landmarks --arg device CPU '( .model_config_list |= map(select(.config.name == $name).config.target_device=$device))' <<< "$ovms_jsonCfg"`
 		fi				
 	fi
 	echo $ovms_jsonCfg
@@ -78,17 +78,21 @@ update_ovms_config_object_and_text_detection() {
 		ovms_jsonCfg=`jq --arg device CPU '(.model_config_list[].config.target_device=$device)' <<< "$ovms_jsonCfg"`
 	elif [ "$PLATFORM" == "xpu" ]
 	then
+		TARGET_GPU_DEVICE="--privileged"
 		if [ "$HAS_ARC" == "1" ] || [ "$HAS_FLEX_170" == "1" ]
 		then
-			ovms_jsonCfg=`jq --arg name yolov5s --arg device GPU.0 '( .model_config_list[] | select(.config.name == $name) ).device |= $device' <<< "$jsonStr"`
-			ovms_jsonCfg=`jq --arg name text-detect-0002 --arg device GPU.1 '( .model_config_list[] | select(.config.name == $name) ).device |= $device' <<< "$jsonStr"`
+			TARGET_GPU="GPU.1"
+			ovms_jsonCfg=`jq --arg name yolov5s --arg device GPU.0 '(.model_config_list |= map(select(.config.name == $name).config.target_device=$device))' <<< "$ovms_jsonCfg"`
+			ovms_jsonCfg=`jq --arg name text-detect-0002 --arg device GPU.1 '(.model_config_list |= map(select(.config.name == $name).config.target_device=$device))' <<< "$ovms_jsonCfg"`
 		elif [ "$HAS_FLEX_140" == "1" ] 
 		then
-			ovms_jsonCfg=`jq --arg name yolov5s --arg device GPU.0 '( .model_config_list[] | select(.config.name == $name) ).device |= $device' <<< "$jsonStr"`
-			ovms_jsonCfg=`jq --arg name text-detect-0002 --arg device CPU '( .model_config_list[] | select(.config.name == $name) ).device |= $device' <<< "$jsonStr"`
+			TARGET_GPU="GPU.0"
+			ovms_jsonCfg=`jq --arg name yolov5s --arg device GPU.0 '(.model_config_list |= map(select(.config.name == $name).config.target_device=$device))' <<< "$ovms_jsonCfg"`
+			ovms_jsonCfg=`jq --arg name text-detect-0002 --arg device CPU '(.model_config_list |= map(select(.config.name == $name).config.target_device=$device))' <<< "$ovms_jsonCfg"`
 		else
-			ovms_jsonCfg=`jq --arg name yolov5s --arg device GPU.0 '( .model_config_list[] | select(.config.name == $name) ).device |= $device' <<< "$jsonStr"`
-			ovms_jsonCfg=`jq --arg name text-detect-0002 --arg device CPU '( .model_config_list[] | select(.config.name == $name) ).device |= $device' <<< "$jsonStr"`
+			TARGET_GPU="GPU.0"
+			ovms_jsonCfg=`jq --arg name yolov5s --arg device GPU.0 '(.model_config_list |= map(select(.config.name == $name).config.target_device=$device))' <<< "$ovms_jsonCfg"`
+			ovms_jsonCfg=`jq --arg name text-detect-0002 --arg device CPU '(.model_config_list |= map(select(.config.name == $name).config.target_device=$device))' <<< "$ovms_jsonCfg"`
 		fi				
 	fi
 	echo $ovms_jsonCfg > configs/gst-ovms/models/config_active.json
@@ -107,6 +111,8 @@ update_ovms_config_people_detection() {
 		ovms_jsonCfg=`jq --arg device CPU '(.model_config_list[].config.target_device=$device)' <<< "$ovms_jsonCfg"`
 	elif [ "$PLATFORM" == "xpu" ]
 	then
+		TARGET_GPU_DEVICE="--privileged"
+		TARGET_GPU="GPU.0"
 		# Keeping seperate from GPU so that if  > 1 models such as people reid / attribute reid
 		# models are used we can XPU load them
 		# Since only one model is used for people detection today behavior is the same as GPU
@@ -128,14 +134,18 @@ update_ovms_config_geti_yolox() {
 		ovms_jsonCfg=`jq --arg device CPU '(.model_config_list[].config.target_device=$device)' <<< "$ovms_jsonCfg"`
 	elif [ "$PLATFORM" == "xpu" ]
 	then
+		TARGET_GPU_DEVICE="--privileged"
 		if [ "$HAS_ARC" == "1" ] || [ "$HAS_FLEX_170" == "1" ]
 		then
-			ovms_jsonCfg=`jq --arg name geti_yolox --arg device GPU.1 '( .model_config_list[] | select(.config.name == $name) ).device |= $device' <<< "$jsonStr"`
+			TARGET_GPU="GPU.1"
+			ovms_jsonCfg=`jq --arg name geti_yolox --arg device GPU.1 '(.model_config_list |= map(select(.config.name == $name).config.target_device=$device))' <<< "$ovms_jsonCfg"`
 		elif [ "$HAS_FLEX_140" == "1" ] 
 		then
-			ovms_jsonCfg=`jq --arg name geti_yolox --arg device GPU.0 '( .model_config_list[] | select(.config.name == $name) ).device |= $device' <<< "$jsonStr"`
+			TARGET_GPU="GPU.0"
+			ovms_jsonCfg=`jq --arg name geti_yolox --arg device GPU.0 '(.model_config_list |= map(select(.config.name == $name).config.target_device=$device))' <<< "$ovms_jsonCfg"`
 		else
-			ovms_jsonCfg=`jq --arg name geti_yolox --arg device GPU.0 '( .model_config_list[] | select(.config.name == $name) ).device |= $device' <<< "$jsonStr"`
+			TARGET_GPU="GPU.0"
+			ovms_jsonCfg=`jq --arg name geti_yolox --arg device GPU.0 '(.model_config_list |= map(select(.config.name == $name).config.target_device=$device))' <<< "$ovms_jsonCfg"`
 		fi				
 	fi
 	echo $ovms_jsonCfg > configs/gst-ovms/models/config_active.json
@@ -154,17 +164,21 @@ update_ovms_config_geti_yolox_ensemble() {
 		ovms_jsonCfg=`jq --arg device CPU '(.model_config_list[].config.target_device=$device)' <<< "$ovms_jsonCfg"`
 	elif [ "$PLATFORM" == "xpu" ]
 	then
+		TARGET_GPU_DEVICE="--privileged"
 		if [ "$HAS_ARC" == "1" ] || [ "$HAS_FLEX_170" == "1" ]
 		then
-			ovms_jsonCfg=`jq --arg name geti_yolox --arg device GPU.1 '( .model_config_list[] | select(.config.name == $name) ).device |= $device' <<< "$jsonStr"`
-			ovms_jsonCfg=`jq --arg name efficientnetb0 --arg device GPU.0 '( .model_config_list[] | select(.config.name == $name) ).device |= $device' <<< "$jsonStr"`
+			TARGET_GPU="GPU.1"
+			ovms_jsonCfg=`jq --arg name geti_yolox --arg device GPU.1 '(.model_config_list |= map(select(.config.name == $name).config.target_device=$device))' <<< "$ovms_jsonCfg"`
+			ovms_jsonCfg=`jq --arg name efficientnetb0 --arg device GPU.0 '(.model_config_list |= map(select(.config.name == $name).config.target_device=$device))' <<< "$ovms_jsonCfg"`
 		elif [ "$HAS_FLEX_140" == "1" ] 
 		then
-			ovms_jsonCfg=`jq --arg name geti_yolox --arg device GPU.0 '( .model_config_list[] | select(.config.name == $name) ).device |= $device' <<< "$jsonStr"`
-			ovms_jsonCfg=`jq --arg name efficientnetb0 --arg device CPU '( .model_config_list[] | select(.config.name == $name) ).device |= $device' <<< "$jsonStr"`
+			TARGET_GPU="GPU.0"
+			ovms_jsonCfg=`jq --arg name geti_yolox --arg device GPU.0 '(.model_config_list |= map(select(.config.name == $name).config.target_device=$device))' <<< "$ovms_jsonCfg"`
+			ovms_jsonCfg=`jq --arg name efficientnetb0 --arg device CPU '(.model_config_list |= map(select(.config.name == $name).config.target_device=$device))' <<< "$ovms_jsonCfg"`
 		else
-			ovms_jsonCfg=`jq --arg name geti_yolox --arg device GPU.0 '( .model_config_list[] | select(.config.name == $name) ).device |= $device' <<< "$jsonStr"`
-			ovms_jsonCfg=`jq --arg name efficientnetb0 --arg device CPU '( .model_config_list[] | select(.config.name == $name) ).device |= $device' <<< "$jsonStr"`
+			TARGET_GPU="GPU.0"
+			ovms_jsonCfg=`jq --arg name geti_yolox --arg device GPU.0 '(.model_config_list |= map(select(.config.name == $name).config.target_device=$device))' <<< "$ovms_jsonCfg"`
+			ovms_jsonCfg=`jq --arg name efficientnetb0 --arg device CPU '(.model_config_list |= map(select(.config.name == $name).config.target_device=$device))' <<< "$ovms_jsonCfg"`
 		fi				
 	fi
 	echo $ovms_jsonCfg > configs/gst-ovms/models/config_active.json
@@ -183,17 +197,21 @@ update_ovms_config_yolov5_ensemble() {
 		ovms_jsonCfg=`jq --arg device CPU '(.model_config_list[].config.target_device=$device)' <<< "$ovms_jsonCfg"`
 	elif [ "$PLATFORM" == "xpu" ]
 	then
+		TARGET_GPU_DEVICE="--privileged"
 		if [ "$HAS_ARC" == "1" ] || [ "$HAS_FLEX_170" == "1" ]
 		then
-			ovms_jsonCfg=`jq --arg name yolov5 --arg device GPU.1 '( .model_config_list[] | select(.config.name == $name) ).device |= $device' <<< "$jsonStr"`
-			ovms_jsonCfg=`jq --arg name efficientnetb0 --arg device GPU.0 '( .model_config_list[] | select(.config.name == $name) ).device |= $device' <<< "$jsonStr"`
+			TARGET_GPU="GPU.1"
+			ovms_jsonCfg=`jq --arg name yolov5 --arg device GPU.1 '(.model_config_list |= map(select(.config.name == $name).config.target_device=$device))' <<< "$ovms_jsonCfg"`
+			ovms_jsonCfg=`jq --arg name efficientnetb0 --arg device GPU.0 '(.model_config_list |= map(select(.config.name == $name).config.target_device=$device))' <<< "$ovms_jsonCfg"`
 		elif [ "$HAS_FLEX_140" == "1" ] 
 		then
-			ovms_jsonCfg=`jq --arg name yolov5 --arg device GPU.0 '( .model_config_list[] | select(.config.name == $name) ).device |= $device' <<< "$jsonStr"`
-			ovms_jsonCfg=`jq --arg name efficientnetb0 --arg device CPU '( .model_config_list[] | select(.config.name == $name) ).device |= $device' <<< "$jsonStr"`
+			TARGET_GPU="GPU.0"
+			ovms_jsonCfg=`jq --arg name yolov5 --arg device GPU.0 '(.model_config_list |= map(select(.config.name == $name).config.target_device=$device))' <<< "$ovms_jsonCfg"`
+			ovms_jsonCfg=`jq --arg name efficientnetb0 --arg device CPU '(.model_config_list |= map(select(.config.name == $name).config.target_device=$device))' <<< "$ovms_jsonCfg"`
 		else
-			ovms_jsonCfg=`jq --arg name yolov5 --arg device GPU.0 '( .model_config_list[] | select(.config.name == $name) ).device |= $device' <<< "$jsonStr"`
-			ovms_jsonCfg=`jq --arg name efficientnetb0 --arg device CPU '( .model_config_list[] | select(.config.name == $name) ).device |= $device' <<< "$jsonStr"`
+			TARGET_GPU="GPU.0"
+			ovms_jsonCfg=`jq --arg name yolov5 --arg device GPU.0 '(.model_config_list |= map(select(.config.name == $name).config.target_device=$device))' <<< "$ovms_jsonCfg"`
+			ovms_jsonCfg=`jq --arg name efficientnetb0 --arg device CPU '(.model_config_list |= map(select(.config.name == $name).config.target_device=$device))' <<< "$ovms_jsonCfg"`
 		fi				
 	fi
 	echo $ovms_jsonCfg > configs/gst-ovms/models/config_active.json
