@@ -43,19 +43,25 @@ update_ovms_config_face_detection() {
 		ovms_jsonCfg=`jq --arg device CPU '(.model_config_list[].config.target_device=$device)' <<< "$ovms_jsonCfg"`
 	elif [ "$PLATFORM" == "xpu" ]
 	then
+		TARGET_GPU_DEVICE="--privileged"
+
 		if [ "$HAS_ARC" == "1" ] || [ "$HAS_FLEX_170" == "1" ]
 		then
-			ovms_jsonCfg=`jq --arg name face_detection --arg device GPU.1 '( .model_config_list[] | select(.config.name == $name) ).device |= $device' <<< "$jsonStr"`
-			ovms_jsonCfg=`jq --arg name face_landmarks --arg device GPU.0 '( .model_config_list[] | select(.config.name == $name) ).device |= $device' <<< "$jsonStr"`
+			TARGET_GPU="GPU.1"
+			ovms_jsonCfg=`jq --arg name face_detection --arg device GPU.1 '( .model_config_list[] | select(.config.name == $name) ).device |= $device' <<< "$ovms_jsonCfg"`
+			ovms_jsonCfg=`jq --arg name face_landmarks --arg device GPU.0 '( .model_config_list[] | select(.config.name == $name) ).device |= $device' <<< "$ovms_jsonCfg"`
 		elif [ "$HAS_FLEX_140" == "1" ] 
 		then
-			ovms_jsonCfg=`jq --arg name face_detection --arg device GPU.0 '( .model_config_list[] | select(.config.name == $name) ).device |= $device' <<< "$jsonStr"`
-			ovms_jsonCfg=`jq --arg name face_landmarks --arg device CPU '( .model_config_list[] | select(.config.name == $name) ).device |= $device' <<< "$jsonStr"`
+			TARGET_GPU="GPU.0"
+			ovms_jsonCfg=`jq --arg name face_detection --arg device GPU.0 '(.model_config_list |= map(select(.config.name == "face_detection").config.target_device=$device))' <<< "$ovms_jsonCfg"`
+			ovms_jsonCfg=`jq --arg name face_landmarks --arg device CPU '( .model_config_list |= map(select(.config.name == "face_landmarks").config.target_device=$device))' <<< "$ovms_jsonCfg"`
 		else
-			ovms_jsonCfg=`jq --arg name face_detection --arg device GPU.0 '( .model_config_list[] | select(.config.name == $name) ).device |= $device' <<< "$jsonStr"`
-			ovms_jsonCfg=`jq --arg name face_detection --arg device CPU '( .model_config_list[] | select(.config.name == $name) ).device |= $device' <<< "$jsonStr"`
+			TARGET_GPU="GPU.0"
+			ovms_jsonCfg=`jq --arg name face_detection --arg device GPU.0 '(.model_config_list |= map(select(.config.name == "face_detection").config.target_device=$device))' <<< "$ovms_jsonCfg"`
+			ovms_jsonCfg=`jq --arg name face_landmarks --arg device CPU '( .model_config_list |= map(select(.config.name == "face_landmarks").config.target_device=$device))' <<< "$ovms_jsonCfg"`
 		fi				
 	fi
+	echo $ovms_jsonCfg
 	echo $ovms_jsonCfg > configs/gst-ovms/models/config_active.json
 }
 
