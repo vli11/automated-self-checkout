@@ -7,11 +7,12 @@
 
 REFRESH_INPUT=
 OPEN_OVMS=0
+GST_OVMS=0
 
 show_help() {
     echo "
         usage: $0
-            --workload dlstreamer|ovms
+            --workload dlstreamer|ovms|gst-ovms
             --refresh 
         Note:
             1. --refresh is optional, it removes previously downloaded model files
@@ -32,11 +33,13 @@ get_options() {
                 ;;
             --workload)
                 echo "workload: ${2}"
-                if [ "$2" == "ovms" ]; then
+                if [ "$2" == "gst-ovms" ]; then
+                    GST_OVMS=1
+                elif [ "$2" == "opencv-ovms" ]; then
                     OPEN_OVMS=1
                 else 
                     if [ "$2" != "dlstreamer" ]; then
-                        echo 'ERROR: "--workload" requires an argument dlstreamer|ovms'
+                        echo 'ERROR: "--workload" requires an argument dlstreamer|ovms|gst-ovms'
                         exit 1
                     fi
                 fi
@@ -63,6 +66,9 @@ echo $MODEL_EXEC_PATH
 if [ "$OPEN_OVMS" -eq 1 ]; then
     echo "Starting open-ovms model download..."
     $MODEL_EXEC_PATH/downloadOVMSModels.sh $REFRESH_INPUT
+elif [ "$GST_OVMS" -eq 1 ]; then
+    echo "Starting gst-ovms model download..."
+    $MODEL_EXEC_PATH/downloadGSTOVMSModels.sh $REFRESH_INPUT
 else
     echo "Starting dlstreamer model download..."
     $MODEL_EXEC_PATH/modelDownload.sh $REFRESH_INPUT
